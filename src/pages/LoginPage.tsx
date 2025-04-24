@@ -3,53 +3,48 @@ import { useState } from 'react';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  const handleLogin = (email: string, password: string) => {
+  const handleLogin = async (email: string, password: string) => {
     setIsLoading(true);
     
-    // Simulated login - in production, this would call Supabase auth
-    setTimeout(() => {
-      // Demo validation - simplistic approach for demo purposes
-      const validCredentials = [
-        { email: 'admin@pharmsync.com', password: 'admin123', role: 'admin' },
-        { email: 'pharmacist@pharmsync.com', password: 'pharm123', role: 'pharmacist' },
-        { email: 'cashier@pharmsync.com', password: 'cash123', role: 'cashier' },
-      ];
-      
-      const user = validCredentials.find(
-        (cred) => cred.email === email && cred.password === password
-      );
-      
-      if (user) {
-        // Store user info in sessionStorage (would be handled by Supabase in production)
-        sessionStorage.setItem('user', JSON.stringify({
-          id: crypto.randomUUID(),
-          email: user.email,
-          name: user.email.split('@')[0],
-          role: user.role,
-        }));
-        
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      if (data?.user) {
+        // Get user profile and role
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, role')
+          .eq('id', data.user.id)
+          .single();
+
         toast({
           title: 'Login Successful',
-          description: `Welcome back, ${user.email.split('@')[0]}!`,
+          description: `Welcome back${profile?.full_name ? ', ' + profile.full_name : ''}!`,
         });
         
         navigate('/');
-      } else {
-        toast({
-          title: 'Login Failed',
-          description: 'Invalid email or password. Please try again.',
-          variant: 'destructive',
-        });
       }
-      
+    } catch (error: any) {
+      toast({
+        title: 'Login Failed',
+        description: error.message || 'Invalid email or password. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (

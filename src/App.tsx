@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppLayout } from "./components/layout/AppLayout";
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Package, 
   Clipboard, 
@@ -41,18 +42,59 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
-    // Check if user is logged in from sessionStorage
-    // In a real app, this would use Supabase auth.user
-    const storedUser = sessionStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setIsLoading(false);
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          // Get user profile data
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, role')
+            .eq('id', session.user.id)
+            .single();
+          
+          setUser({
+            id: session.user.id,
+            name: profile?.full_name || session.user.email?.split('@')[0] || '',
+            email: session.user.email || '',
+            role: profile?.role || 'user',
+            avatarUrl: session.user.user_metadata.avatar_url,
+          });
+        } else {
+          setUser(null);
+        }
+      }
+    );
+
+    // Check current auth status
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        // Get user profile data
+        supabase
+          .from('profiles')
+          .select('full_name, role')
+          .eq('id', session.user.id)
+          .single()
+          .then(({ data: profile }) => {
+            setUser({
+              id: session.user.id,
+              name: profile?.full_name || session.user.email?.split('@')[0] || '',
+              email: session.user.email || '',
+              role: profile?.role || 'user',
+              avatarUrl: session.user.user_metadata.avatar_url,
+            });
+          });
+      }
+      setIsLoading(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
   
-  const handleLogout = () => {
-    // Clear user from storage and state
-    sessionStorage.removeItem('user');
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
   };
   
