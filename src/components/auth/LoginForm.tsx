@@ -15,13 +15,26 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Package } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-const formSchema = z.object({
+const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
-type LoginFormValues = z.infer<typeof formSchema>;
+const signupSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
+  fullName: z.string().min(2, 'Full name must be at least 2 characters'),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
+type SignupFormValues = z.infer<typeof signupSchema>;
 
 type LoginFormProps = {
   onLogin: (email: string, password: string) => void;
@@ -30,6 +43,7 @@ type LoginFormProps = {
 
 export function LoginForm({ onLogin, isLoading = false }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
+  const [isSignupLoading, setIsSignupLoading] = useState(false);
   const { toast } = useToast();
   
   // Demo accounts
@@ -39,23 +53,76 @@ export function LoginForm({ onLogin, isLoading = false }: LoginFormProps) {
     { email: 'cashier@pharmsync.com', password: 'cash123', role: 'Cashier' },
   ];
   
-  const form = useForm<LoginFormValues>({
-    resolver: zodResolver(formSchema),
+  const loginForm = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
     defaultValues: {
       email: '',
       password: '',
     },
   });
 
-  const onSubmit = (data: LoginFormValues) => {
+  const signupForm = useForm<SignupFormValues>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+      confirmPassword: '',
+      fullName: '',
+    },
+  });
+
+  const handleSignup = async (data: SignupFormValues) => {
+    setIsSignupLoading(true);
+    
+    try {
+      const { data: signupData, error } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: {
+            full_name: data.fullName,
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Sign Up Successful',
+        description: 'Your account has been created. Please check your email for verification.',
+      });
+
+      // After successful signup, update the profile with full name
+      if (signupData.user) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ full_name: data.fullName })
+          .eq('id', signupData.user.id);
+        
+        if (profileError) {
+          console.error('Error updating profile:', profileError);
+        }
+      }
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      toast({
+        title: 'Signup Failed',
+        description: error.message || 'There was a problem creating your account.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSignupLoading(false);
+    }
+  };
+
+  const onSubmitLogin = (data: LoginFormValues) => {
     onLogin(data.email, data.password);
   };
 
   const handleDemoLogin = (account: { email: string; password: string; role: string }) => {
-    form.setValue('email', account.email);
-    form.setValue('password', account.password);
+    loginForm.setValue('email', account.email);
+    loginForm.setValue('password', account.password);
     
-    // Toast notification
     toast({
       title: `${account.role} Demo Account`,
       description: 'Credentials filled. Click Login to continue.',
@@ -70,88 +137,184 @@ export function LoginForm({ onLogin, isLoading = false }: LoginFormProps) {
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">PharmSync</h1>
         <p className="text-sm text-muted-foreground">
-          Enter your credentials to access your account
+          Pharmacy Management System
         </p>
       </div>
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email</FormLabel>
-                <FormControl>
-                  <Input placeholder="email@example.com" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          
-          <FormField
-            control={form.control}
-            name="password"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Password</FormLabel>
-                <FormControl>
-                  <Input 
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••" 
-                    {...field} 
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          
-          <div className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              id="show-password"
-              checked={showPassword}
-              onChange={() => setShowPassword(!showPassword)}
-              className="rounded border-gray-300"
-            />
-            <label htmlFor="show-password" className="text-sm text-gray-600">
-              Show password
-            </label>
-          </div>
-          
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Logging in..." : "Login"}
-          </Button>
-        </form>
-      </Form>
-
-      <div className="space-y-4">
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t"></span>
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">
-              Demo Accounts
-            </span>
-          </div>
-        </div>
+      <Tabs defaultValue="login" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="login">Login</TabsTrigger>
+          <TabsTrigger value="signup">Sign Up</TabsTrigger>
+        </TabsList>
         
-        <div className="grid gap-2">
-          {demoAccounts.map((account) => (
-            <Button 
-              key={account.email} 
-              variant="outline" 
-              type="button"
-              onClick={() => handleDemoLogin(account)}
-            >
-              Login as {account.role}
-            </Button>
-          ))}
-        </div>
-      </div>
+        <TabsContent value="login">
+          <Form {...loginForm}>
+            <form onSubmit={loginForm.handleSubmit(onSubmitLogin)} className="space-y-4">
+              <FormField
+                control={loginForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input placeholder="email@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={loginForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••" 
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="show-password-login"
+                  checked={showPassword}
+                  onChange={() => setShowPassword(!showPassword)}
+                  className="rounded border-gray-300"
+                />
+                <label htmlFor="show-password-login" className="text-sm text-gray-600">
+                  Show password
+                </label>
+              </div>
+              
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? "Logging in..." : "Login"}
+              </Button>
+            </form>
+          </Form>
+
+          <div className="mt-4 space-y-4">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t"></span>
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Demo Accounts
+                </span>
+              </div>
+            </div>
+            
+            <div className="grid gap-2">
+              {demoAccounts.map((account) => (
+                <Button 
+                  key={account.email} 
+                  variant="outline" 
+                  type="button"
+                  onClick={() => handleDemoLogin(account)}
+                >
+                  Login as {account.role}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="signup">
+          <Form {...signupForm}>
+            <form onSubmit={signupForm.handleSubmit(handleSignup)} className="space-y-4">
+              <FormField
+                control={signupForm.control}
+                name="fullName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Full Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="John Doe" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={signupForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input placeholder="email@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={signupForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type={showPassword ? "text" : "password"} 
+                        placeholder="••••••••" 
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={signupForm.control}
+                name="confirmPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Confirm Password</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type={showPassword ? "text" : "password"} 
+                        placeholder="••••••••" 
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="show-password-signup"
+                  checked={showPassword}
+                  onChange={() => setShowPassword(!showPassword)}
+                  className="rounded border-gray-300"
+                />
+                <label htmlFor="show-password-signup" className="text-sm text-gray-600">
+                  Show password
+                </label>
+              </div>
+              
+              <Button type="submit" className="w-full" disabled={isSignupLoading}>
+                {isSignupLoading ? "Creating account..." : "Create Account"}
+              </Button>
+            </form>
+          </Form>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

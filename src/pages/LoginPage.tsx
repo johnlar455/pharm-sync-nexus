@@ -23,20 +23,22 @@ export default function LoginPage() {
 
       if (data?.user) {
         // Get user profile and role
-        const { data: profile } = await supabase
+        const { data: profileData } = await supabase
           .from('profiles')
           .select('full_name, role')
           .eq('id', data.user.id)
           .single();
 
+        // Show success toast with user's name if available
         toast({
           title: 'Login Successful',
-          description: `Welcome back${profile?.full_name ? ', ' + profile.full_name : ''}!`,
+          description: `Welcome back${profileData?.full_name ? ', ' + profileData.full_name : ''}!`,
         });
         
         navigate('/');
       }
     } catch (error: any) {
+      console.error("Login error:", error);
       toast({
         title: 'Login Failed',
         description: error.message || 'Invalid email or password. Please try again.',

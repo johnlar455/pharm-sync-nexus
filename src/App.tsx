@@ -37,7 +37,7 @@ type User = {
   avatarUrl?: string;
 };
 
-const App = () => {
+const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -57,12 +57,13 @@ const App = () => {
             id: session.user.id,
             name: profile?.full_name || session.user.email?.split('@')[0] || '',
             email: session.user.email || '',
-            role: profile?.role || 'user',
+            role: profile?.role || 'cashier',
             avatarUrl: session.user.user_metadata.avatar_url,
           });
         } else {
           setUser(null);
         }
+        setIsLoading(false);
       }
     );
 
@@ -80,12 +81,14 @@ const App = () => {
               id: session.user.id,
               name: profile?.full_name || session.user.email?.split('@')[0] || '',
               email: session.user.email || '',
-              role: profile?.role || 'user',
+              role: profile?.role || 'cashier',
               avatarUrl: session.user.user_metadata.avatar_url,
             });
+            setIsLoading(false);
           });
+      } else {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
     return () => {
@@ -99,7 +102,12 @@ const App = () => {
   };
   
   if (isLoading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-pharmacy-200 border-t-pharmacy-600"></div>
+        <p className="ml-2">Loading...</p>
+      </div>
+    );
   }
 
   return (
