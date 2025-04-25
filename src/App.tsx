@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -27,12 +28,15 @@ import PlaceholderPage from "./pages/PlaceholderPage";
 
 const queryClient = new QueryClient();
 
+// Define valid role types
+type UserRole = 'admin' | 'pharmacist' | 'cashier';
+
 // Update User type definition to use correct role types
 type User = {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'pharmacist' | 'cashier';
+  role: UserRole;
   avatarUrl?: string;
 };
 
@@ -51,11 +55,14 @@ const App: React.FC = () => {
             .eq('id', session.user.id)
             .single();
           
+          // Ensure the role is properly typed as UserRole
+          const userRole = (profile?.role as UserRole) || 'cashier';
+          
           setUser({
             id: session.user.id,
             name: profile?.full_name || session.user.email?.split('@')[0] || '',
             email: session.user.email || '',
-            role: (profile?.role as 'admin' | 'pharmacist' | 'cashier') || 'cashier',
+            role: userRole,
             avatarUrl: session.user.user_metadata.avatar_url,
           });
         } else {
@@ -74,11 +81,14 @@ const App: React.FC = () => {
           .eq('id', session.user.id)
           .single()
           .then(({ data: profile }) => {
+            // Ensure the role is properly typed as UserRole
+            const userRole = (profile?.role as UserRole) || 'cashier';
+            
             setUser({
               id: session.user.id,
               name: profile?.full_name || session.user.email?.split('@')[0] || '',
               email: session.user.email || '',
-              role: (profile?.role as 'admin' | 'pharmacist' | 'cashier') || 'cashier',
+              role: userRole,
               avatarUrl: session.user.user_metadata.avatar_url,
             });
             setIsLoading(false);

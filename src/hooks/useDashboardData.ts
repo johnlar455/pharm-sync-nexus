@@ -41,7 +41,7 @@ export const useDashboardData = () => {
         supabase.from('medicines').select('count').single(),
         supabase.from('medicines')
           .select('id')
-          .lt('stock_quantity', supabase.rpc('reorder_level')),
+          .lt('stock_quantity', 10), // Use a fixed value for reorder level instead of RPC
         supabase.from('medicines')
           .select('id')
           .lt('expiry_date', `${today}T00:00:00`),
