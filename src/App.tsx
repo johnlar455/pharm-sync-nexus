@@ -27,7 +27,7 @@ import PlaceholderPage from "./pages/PlaceholderPage";
 
 const queryClient = new QueryClient();
 
-// User type definition
+// Update User type definition to use correct role types
 type User = {
   id: string;
   name: string;
@@ -41,11 +41,10 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
-    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (session?.user) {
-          // Get user profile data
+          // Get user profile data with proper type casting
           const { data: profile } = await supabase
             .from('profiles')
             .select('full_name, role')
@@ -56,7 +55,7 @@ const App: React.FC = () => {
             id: session.user.id,
             name: profile?.full_name || session.user.email?.split('@')[0] || '',
             email: session.user.email || '',
-            role: profile?.role || 'cashier',
+            role: (profile?.role as 'admin' | 'pharmacist' | 'cashier') || 'cashier',
             avatarUrl: session.user.user_metadata.avatar_url,
           });
         } else {
@@ -69,7 +68,6 @@ const App: React.FC = () => {
     // Check current auth status
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        // Get user profile data
         supabase
           .from('profiles')
           .select('full_name, role')
@@ -80,7 +78,7 @@ const App: React.FC = () => {
               id: session.user.id,
               name: profile?.full_name || session.user.email?.split('@')[0] || '',
               email: session.user.email || '',
-              role: profile?.role || 'cashier',
+              role: (profile?.role as 'admin' | 'pharmacist' | 'cashier') || 'cashier',
               avatarUrl: session.user.user_metadata.avatar_url,
             });
             setIsLoading(false);
@@ -122,7 +120,16 @@ const App: React.FC = () => {
           {user ? (
             <AppLayout user={user} onLogout={handleLogout}>
               <Routes>
-                <Route path="/" element={<DashboardPage />} />
+                <Route 
+                  path="/" 
+                  element={
+                    isAuthorized(['admin', 'pharmacist']) ? (
+                      <DashboardPage />
+                    ) : (
+                      <Navigate to="/sales" replace />
+                    )
+                  } 
+                />
                 <Route 
                   path="/medicines" 
                   element={
