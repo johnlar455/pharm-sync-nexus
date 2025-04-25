@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -17,6 +16,7 @@ import { Package } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { RoleSelect } from './RoleSelect';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -28,6 +28,7 @@ const signupSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
   fullName: z.string().min(2, 'Full name must be at least 2 characters'),
+  role: z.enum(['pharmacist', 'cashier']),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -45,14 +46,7 @@ export function LoginForm({ onLogin, isLoading = false }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [isSignupLoading, setIsSignupLoading] = useState(false);
   const { toast } = useToast();
-  
-  // Demo accounts
-  const demoAccounts = [
-    { email: 'admin@pharmsync.com', password: 'admin123', role: 'Admin' },
-    { email: 'pharmacist@pharmsync.com', password: 'pharm123', role: 'Pharmacist' },
-    { email: 'cashier@pharmsync.com', password: 'cash123', role: 'Cashier' },
-  ];
-  
+
   const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -68,6 +62,7 @@ export function LoginForm({ onLogin, isLoading = false }: LoginFormProps) {
       password: '',
       confirmPassword: '',
       fullName: '',
+      role: 'cashier',
     },
   });
 
@@ -81,6 +76,7 @@ export function LoginForm({ onLogin, isLoading = false }: LoginFormProps) {
         options: {
           data: {
             full_name: data.fullName,
+            role: data.role,
           }
         }
       });
@@ -92,17 +88,6 @@ export function LoginForm({ onLogin, isLoading = false }: LoginFormProps) {
         description: 'Your account has been created. Please check your email for verification.',
       });
 
-      // After successful signup, update the profile with full name
-      if (signupData.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({ full_name: data.fullName })
-          .eq('id', signupData.user.id);
-        
-        if (profileError) {
-          console.error('Error updating profile:', profileError);
-        }
-      }
     } catch (error: any) {
       console.error('Signup error:', error);
       toast({
@@ -117,16 +102,6 @@ export function LoginForm({ onLogin, isLoading = false }: LoginFormProps) {
 
   const onSubmitLogin = (data: LoginFormValues) => {
     onLogin(data.email, data.password);
-  };
-
-  const handleDemoLogin = (account: { email: string; password: string; role: string }) => {
-    loginForm.setValue('email', account.email);
-    loginForm.setValue('password', account.password);
-    
-    toast({
-      title: `${account.role} Demo Account`,
-      description: 'Credentials filled. Click Login to continue.',
-    });
   };
 
   return (
@@ -200,32 +175,6 @@ export function LoginForm({ onLogin, isLoading = false }: LoginFormProps) {
               </Button>
             </form>
           </Form>
-
-          <div className="mt-4 space-y-4">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t"></span>
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  Demo Accounts
-                </span>
-              </div>
-            </div>
-            
-            <div className="grid gap-2">
-              {demoAccounts.map((account) => (
-                <Button 
-                  key={account.email} 
-                  variant="outline" 
-                  type="button"
-                  onClick={() => handleDemoLogin(account)}
-                >
-                  Login as {account.role}
-                </Button>
-              ))}
-            </div>
-          </div>
         </TabsContent>
         
         <TabsContent value="signup">
@@ -253,6 +202,23 @@ export function LoginForm({ onLogin, isLoading = false }: LoginFormProps) {
                     <FormLabel>Email</FormLabel>
                     <FormControl>
                       <Input placeholder="email@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={signupForm.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Role</FormLabel>
+                    <FormControl>
+                      <RoleSelect 
+                        value={field.value} 
+                        onValueChange={field.onChange} 
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

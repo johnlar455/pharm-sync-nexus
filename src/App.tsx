@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -33,7 +32,7 @@ type User = {
   id: string;
   name: string;
   email: string;
-  role: string;
+  role: 'admin' | 'pharmacist' | 'cashier';
   avatarUrl?: string;
 };
 
@@ -100,7 +99,11 @@ const App: React.FC = () => {
     await supabase.auth.signOut();
     setUser(null);
   };
-  
+
+  const isAuthorized = (allowedRoles: string[]) => {
+    return user && allowedRoles.includes(user.role);
+  };
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -120,7 +123,16 @@ const App: React.FC = () => {
             <AppLayout user={user} onLogout={handleLogout}>
               <Routes>
                 <Route path="/" element={<DashboardPage />} />
-                <Route path="/medicines" element={<MedicinesPage />} />
+                <Route 
+                  path="/medicines" 
+                  element={
+                    isAuthorized(['admin', 'pharmacist']) ? (
+                      <MedicinesPage />
+                    ) : (
+                      <Navigate to="/" replace />
+                    )
+                  } 
+                />
                 <Route path="/inventory" element={
                   <PlaceholderPage 
                     title="Inventory" 
