@@ -41,10 +41,10 @@ export const useDashboardData = () => {
         supabase.from('medicines').select('count').single(),
         supabase.from('medicines')
           .select('id')
-          .lt('stock_quantity', supabase.raw('reorder_level')),
+          .lt('stock_quantity', supabase.rpc('reorder_level')),
         supabase.from('medicines')
           .select('id')
-          .lt('expiry_date', supabase.raw(`CURRENT_DATE + INTERVAL '30 days'`)),
+          .lt('expiry_date', `${today}T00:00:00`),
         supabase.from('sales')
           .select('total_amount')
           .gte('created_at', `${today}T00:00:00`)
