@@ -44,7 +44,7 @@ export const useDashboardData = () => {
           .lt('stock_quantity', 10), // Use a fixed value for reorder level
         supabase.from('medicines')
           .select('id')
-          .lt('expiry_date', `${today}T00:00:00`),
+          .lt('expiry_date', `${today}`),
         supabase.from('sales')
           .select('total_amount')
           .gte('created_at', `${today}T00:00:00`)

@@ -236,10 +236,10 @@ export default function MedicinesPage() {
           description: `${values.name} has been updated successfully`,
         });
       } else {
-        // Add new medicine
+        // Add new medicine - FIX: Don't wrap values in an array
         const { error } = await supabase
           .from('medicines')
-          .insert([values]);
+          .insert(values); // This was the issue, values was being wrapped in an array
 
         if (error) throw error;
 

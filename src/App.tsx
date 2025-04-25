@@ -23,6 +23,8 @@ import {
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import MedicinesPage from "./pages/MedicinesPage";
+import InventoryPage from "./pages/InventoryPage";
+import PrescriptionsPage from "./pages/PrescriptionsPage";
 import NotFound from "./pages/NotFound";
 import PlaceholderPage from "./pages/PlaceholderPage";
 
@@ -56,13 +58,13 @@ const App: React.FC = () => {
             .single();
           
           // Ensure the role is properly typed as UserRole
-          const userRole = (profile?.role as UserRole) || 'cashier';
+          const role = profile?.role as UserRole || 'cashier';
           
           setUser({
             id: session.user.id,
             name: profile?.full_name || session.user.email?.split('@')[0] || '',
             email: session.user.email || '',
-            role: userRole,
+            role: role,
             avatarUrl: session.user.user_metadata.avatar_url,
           });
         } else {
@@ -82,13 +84,13 @@ const App: React.FC = () => {
           .single()
           .then(({ data: profile }) => {
             // Ensure the role is properly typed as UserRole
-            const userRole = (profile?.role as UserRole) || 'cashier';
+            const role = profile?.role as UserRole || 'cashier';
             
             setUser({
               id: session.user.id,
               name: profile?.full_name || session.user.email?.split('@')[0] || '',
               email: session.user.email || '',
-              role: userRole,
+              role: role,
               avatarUrl: session.user.user_metadata.avatar_url,
             });
             setIsLoading(false);
@@ -150,20 +152,26 @@ const App: React.FC = () => {
                     )
                   } 
                 />
-                <Route path="/inventory" element={
-                  <PlaceholderPage 
-                    title="Inventory" 
-                    description="Manage your pharmacy inventory" 
-                    icon={<Package size={24} />} 
-                  />
-                } />
-                <Route path="/prescriptions" element={
-                  <PlaceholderPage 
-                    title="Prescriptions" 
-                    description="Manage patient prescriptions" 
-                    icon={<Clipboard size={24} />} 
-                  />
-                } />
+                <Route 
+                  path="/inventory" 
+                  element={
+                    isAuthorized(['admin', 'pharmacist']) ? (
+                      <InventoryPage />
+                    ) : (
+                      <Navigate to="/" replace />
+                    )
+                  }
+                />
+                <Route 
+                  path="/prescriptions" 
+                  element={
+                    isAuthorized(['admin', 'pharmacist']) ? (
+                      <PrescriptionsPage />
+                    ) : (
+                      <Navigate to="/" replace />
+                    )
+                  }
+                />
                 <Route path="/sales" element={
                   <PlaceholderPage 
                     title="Sales" 
