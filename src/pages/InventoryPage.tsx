@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -62,7 +61,7 @@ interface Medicine {
 interface InventoryTransaction {
   id: string;
   medicine_id: string;
-  medicine_name?: string; // Will be joined from medicine table
+  medicine_name?: string;
   quantity: number;
   unit_price: number;
   total_amount: number;
@@ -72,7 +71,6 @@ interface InventoryTransaction {
   created_at: string;
 }
 
-// Schema for inventory transaction
 const inventoryTransactionSchema = z.object({
   medicine_id: z.string().min(1, { message: "Medicine is required" }),
   quantity: z.number().min(1, { message: "Quantity must be at least 1" }),
@@ -97,7 +95,6 @@ export default function InventoryPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Initialize form for adding inventory transactions
   const form = useForm<z.infer<typeof inventoryTransactionSchema>>({
     resolver: zodResolver(inventoryTransactionSchema),
     defaultValues: {
@@ -110,7 +107,6 @@ export default function InventoryPage() {
     },
   });
 
-  // Check user role on component mount
   useEffect(() => {
     const checkUserRole = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -138,7 +134,6 @@ export default function InventoryPage() {
     checkUserRole();
   }, [navigate, toast]);
 
-  // Fetch medicines data
   const fetchMedicines = async () => {
     try {
       const { data, error } = await supabase
@@ -149,17 +144,15 @@ export default function InventoryPage() {
       if (error) throw error;
       if (data) setMedicines(data as Medicine[]);
       
-      // Get low stock items
       const today = new Date().toISOString().split('T')[0];
       const { data: lowStock } = await supabase
         .from('medicines')
         .select('*')
-        .lt('stock_quantity', 10) // Using a fixed reorder level
+        .lt('stock_quantity', 10)
         .order('stock_quantity');
       
       if (lowStock) setLowStockItems(lowStock as Medicine[]);
       
-      // Get expiring items
       const { data: expiring } = await supabase
         .from('medicines')
         .select('*')
@@ -177,7 +170,6 @@ export default function InventoryPage() {
     }
   };
 
-  // Fetch inventory transactions
   const fetchTransactions = async () => {
     try {
       const { data, error } = await supabase
@@ -191,7 +183,6 @@ export default function InventoryPage() {
       if (error) throw error;
 
       if (data) {
-        // Transform data to include medicine name
         const transformedData = data.map(item => ({
           ...item,
           medicine_name: item.medicines?.name || 'Unknown',
@@ -214,7 +205,6 @@ export default function InventoryPage() {
     fetchMedicines();
     fetchTransactions();
     
-    // Set up real-time subscription
     const channel = supabase
       .channel('inventory-changes')
       .on('postgres_changes', {
@@ -234,7 +224,6 @@ export default function InventoryPage() {
     };
   }, [sortField, sortDirection]);
 
-  // Handle sorting
   const handleSort = (field: string) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -244,7 +233,6 @@ export default function InventoryPage() {
     }
   };
 
-  // Filter transactions based on search query and transaction type
   const filteredTransactions = transactions.filter((transaction) => {
     const matchesSearch = 
       transaction.medicine_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -257,12 +245,10 @@ export default function InventoryPage() {
     return matchesSearch && matchesType;
   });
 
-  // Format date
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
   };
 
-  // Format price
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -270,16 +256,13 @@ export default function InventoryPage() {
     }).format(price);
   };
 
-  // Open dialog to add new transaction
   const openAddTransactionDialog = () => {
     form.reset();
     setDialogOpen(true);
   };
 
-  // Handle form submission for new transaction
   const onSubmit = async (values: z.infer<typeof inventoryTransactionSchema>) => {
     try {
-      // Get selected medicine details
       const selectedMedicine = medicines.find(med => med.id === values.medicine_id);
       
       if (!selectedMedicine) {
@@ -291,25 +274,26 @@ export default function InventoryPage() {
         return;
       }
       
-      // Calculate total amount
       const totalAmount = values.quantity * values.unit_price;
       
-      // Create transaction record
       const { error: transactionError } = await supabase
         .from('inventory_transactions')
         .insert({
-          ...values,
-          total_amount: totalAmount
+          medicine_id: values.medicine_id,
+          quantity: values.quantity,
+          unit_price: values.unit_price,
+          total_amount: totalAmount,
+          transaction_type: values.transaction_type,
+          reference_number: values.reference_number || null,
+          notes: values.notes || null
         });
 
       if (transactionError) throw transactionError;
       
-      // Update medicine stock quantity
       const newQuantity = values.transaction_type === 'in' 
         ? selectedMedicine.stock_quantity + values.quantity
         : selectedMedicine.stock_quantity - values.quantity;
       
-      // Prevent negative stock
       if (newQuantity < 0) {
         toast({
           title: "Insufficient stock",
@@ -342,7 +326,6 @@ export default function InventoryPage() {
     }
   };
 
-  // Loading state
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -383,7 +366,6 @@ export default function InventoryPage() {
         </TabsList>
         
         <TabsContent value="transactions" className="space-y-4">
-          {/* Filters */}
           <div className="flex flex-col gap-4 md:flex-row">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
@@ -414,7 +396,6 @@ export default function InventoryPage() {
             </div>
           </div>
           
-          {/* Transactions Table */}
           <div className="rounded-md border">
             <Table>
               <TableHeader>
@@ -483,7 +464,6 @@ export default function InventoryPage() {
         
         <TabsContent value="alerts" className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
-            {/* Low Stock Items */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
@@ -539,7 +519,6 @@ export default function InventoryPage() {
               </CardContent>
             </Card>
             
-            {/* Expiring Items */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
@@ -599,7 +578,6 @@ export default function InventoryPage() {
         </TabsContent>
       </Tabs>
       
-      {/* Add Transaction Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

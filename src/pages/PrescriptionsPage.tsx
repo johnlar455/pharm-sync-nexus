@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -35,7 +34,6 @@ import {
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -46,6 +44,19 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+
+interface PrescriptionItem {
+  id: string;
+  prescription_id: string;
+  medicine_id: string;
+  medicine: {
+    name: string;
+    unit_price: number;
+  };
+  quantity: number;
+  dosage: string | null;
+  instructions: string | null;
+}
 
 interface Prescription {
   id: string;
@@ -59,19 +70,8 @@ interface Prescription {
   notes: string | null;
   status: string | null;
   items: PrescriptionItem[];
-}
-
-interface PrescriptionItem {
-  id: string;
-  prescription_id: string;
-  medicine_id: string;
-  medicine: {
-    name: string;
-    unit_price: number;
-  };
-  quantity: number;
-  dosage: string | null;
-  instructions: string | null;
+  created_by?: string;
+  updated_at?: string;
 }
 
 interface Customer {
@@ -88,7 +88,6 @@ interface Medicine {
   stock_quantity: number;
 }
 
-// Schema for prescription form
 const prescriptionFormSchema = z.object({
   customer_id: z.string().min(1, { message: "Customer is required" }),
   doctor_name: z.string().min(1, { message: "Doctor name is required" }),
@@ -97,7 +96,6 @@ const prescriptionFormSchema = z.object({
   status: z.string().default('active'),
 });
 
-// Schema for prescription item form
 const prescriptionItemSchema = z.object({
   medicine_id: z.string().min(1, { message: "Medicine is required" }),
   quantity: z.number().min(1, { message: "Quantity must be at least 1" }),
@@ -126,7 +124,6 @@ export default function PrescriptionsPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Initialize forms
   const prescriptionForm = useForm<z.infer<typeof prescriptionFormSchema>>({
     resolver: zodResolver(prescriptionFormSchema),
     defaultValues: {
@@ -148,7 +145,6 @@ export default function PrescriptionsPage() {
     },
   });
 
-  // Check user role on component mount
   useEffect(() => {
     const checkUserRole = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -176,10 +172,8 @@ export default function PrescriptionsPage() {
     checkUserRole();
   }, [navigate, toast]);
 
-  // Fetch customers, medicines and prescriptions data
   const fetchData = async () => {
     try {
-      // Fetch customers
       const { data: customersData, error: customersError } = await supabase
         .from('customers')
         .select('id, full_name, email, phone')
@@ -188,7 +182,6 @@ export default function PrescriptionsPage() {
       if (customersError) throw customersError;
       if (customersData) setCustomers(customersData as Customer[]);
       
-      // Fetch medicines
       const { data: medicinesData, error: medicinesError } = await supabase
         .from('medicines')
         .select('id, name, unit_price, stock_quantity')
@@ -206,7 +199,6 @@ export default function PrescriptionsPage() {
     }
   };
 
-  // Fetch prescriptions
   const fetchPrescriptions = async () => {
     try {
       const { data, error } = await supabase
@@ -219,6 +211,7 @@ export default function PrescriptionsPage() {
           items:prescription_items (
             id,
             medicine_id,
+            prescription_id,
             quantity,
             dosage,
             instructions,
@@ -233,7 +226,7 @@ export default function PrescriptionsPage() {
       if (error) throw error;
       
       if (data) {
-        setPrescriptions(data as Prescription[]);
+        setPrescriptions(data as unknown as Prescription[]);
       }
     } catch (error) {
       toast({
@@ -250,7 +243,6 @@ export default function PrescriptionsPage() {
     fetchData();
     fetchPrescriptions();
     
-    // Set up real-time subscription
     const channel = supabase
       .channel('prescription-changes')
       .on('postgres_changes', {
@@ -270,7 +262,6 @@ export default function PrescriptionsPage() {
     };
   }, [sortField, sortDirection]);
 
-  // Filter prescriptions based on search query and status filter
   const filteredPrescriptions = prescriptions.filter((prescription) => {
     const matchesSearch = 
       prescription.customer?.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -282,12 +273,10 @@ export default function PrescriptionsPage() {
     return matchesSearch && matchesStatus;
   });
 
-  // Format date
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
   };
 
-  // Handle sorting
   const handleSort = (field: string) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -297,7 +286,6 @@ export default function PrescriptionsPage() {
     }
   };
 
-  // Open dialog to create new prescription
   const openNewPrescriptionDialog = () => {
     prescriptionForm.reset({
       customer_id: "",
@@ -311,19 +299,16 @@ export default function PrescriptionsPage() {
     setPrescriptionDialogOpen(true);
   };
 
-  // Open dialog to view prescription
   const openViewPrescriptionDialog = (prescription: Prescription) => {
     setCurrentPrescription(prescription);
     setViewDialogOpen(true);
   };
 
-  // Open dialog to delete prescription
   const openDeleteDialog = (prescription: Prescription) => {
     setCurrentPrescription(prescription);
     setDeleteDialogOpen(true);
   };
 
-  // Open dialog to add medicine to prescription
   const openAddMedicineDialog = () => {
     itemForm.reset({
       medicine_id: "",
@@ -334,7 +319,6 @@ export default function PrescriptionsPage() {
     setItemDialogOpen(true);
   };
 
-  // Handle medicine addition to current prescription
   const handleAddMedicine = (values: z.infer<typeof prescriptionItemSchema>) => {
     const medicine = medicines.find(med => med.id === values.medicine_id);
     
@@ -347,13 +331,11 @@ export default function PrescriptionsPage() {
       return;
     }
     
-    // Check if medicine already exists in prescription
     const existingItemIndex = prescriptionItems.findIndex(
       item => item.medicine_id === values.medicine_id
     );
     
     if (existingItemIndex >= 0) {
-      // Update existing item
       const updatedItems = [...prescriptionItems];
       updatedItems[existingItemIndex] = {
         ...updatedItems[existingItemIndex],
@@ -363,7 +345,6 @@ export default function PrescriptionsPage() {
       };
       setPrescriptionItems(updatedItems);
     } else {
-      // Add new item
       setPrescriptionItems([
         ...prescriptionItems,
         {
@@ -384,15 +365,12 @@ export default function PrescriptionsPage() {
     setItemDialogOpen(false);
   };
 
-  // Remove medicine from current prescription
   const handleRemoveMedicine = (itemId: string) => {
     setPrescriptionItems(prescriptionItems.filter(item => item.id !== itemId));
   };
 
-  // Handle prescription form submission
   const onSubmitPrescription = async (values: z.infer<typeof prescriptionFormSchema>) => {
     try {
-      // Validate that there's at least one medicine
       if (prescriptionItems.length === 0) {
         toast({
           title: "No medicines added",
@@ -405,25 +383,34 @@ export default function PrescriptionsPage() {
       let prescriptionId = currentPrescription?.id;
       
       if (!prescriptionId) {
-        // Create new prescription
         const { data, error } = await supabase
           .from('prescriptions')
-          .insert(values)
+          .insert({
+            customer_id: values.customer_id,
+            doctor_name: values.doctor_name,
+            prescription_date: values.prescription_date,
+            notes: values.notes || null,
+            status: values.status
+          })
           .select('id')
           .single();
         
         if (error) throw error;
         prescriptionId = data.id;
       } else {
-        // Update existing prescription
         const { error } = await supabase
           .from('prescriptions')
-          .update(values)
+          .update({
+            customer_id: values.customer_id,
+            doctor_name: values.doctor_name,
+            prescription_date: values.prescription_date,
+            notes: values.notes || null,
+            status: values.status
+          })
           .eq('id', prescriptionId);
         
         if (error) throw error;
         
-        // Delete existing prescription items
         const { error: deleteError } = await supabase
           .from('prescription_items')
           .delete()
@@ -432,7 +419,6 @@ export default function PrescriptionsPage() {
         if (deleteError) throw deleteError;
       }
       
-      // Create prescription items
       const prescriptionItemsData = prescriptionItems.map(item => ({
         prescription_id: prescriptionId,
         medicine_id: item.medicine_id,
@@ -462,12 +448,10 @@ export default function PrescriptionsPage() {
     }
   };
 
-  // Handle prescription deletion
   const handleDeletePrescription = async () => {
     if (!currentPrescription) return;
     
     try {
-      // Delete prescription (cascade will delete items)
       const { error } = await supabase
         .from('prescriptions')
         .delete()
@@ -490,7 +474,6 @@ export default function PrescriptionsPage() {
     }
   };
 
-  // Generate prescription status badge
   const getStatusBadge = (status: string | null) => {
     switch (status) {
       case 'active':
@@ -504,12 +487,10 @@ export default function PrescriptionsPage() {
     }
   };
 
-  // Calculate total for a prescription
   const calculateTotal = (items: PrescriptionItem[]) => {
     return items.reduce((sum, item) => sum + (item.medicine.unit_price * item.quantity), 0);
   };
 
-  // Format currency
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -517,7 +498,6 @@ export default function PrescriptionsPage() {
     }).format(amount);
   };
 
-  // Loading state
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -551,7 +531,6 @@ export default function PrescriptionsPage() {
         </div>
       </div>
       
-      {/* Filters */}
       <div className="flex flex-col gap-4 md:flex-row">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
@@ -583,7 +562,6 @@ export default function PrescriptionsPage() {
         </div>
       </div>
       
-      {/* Prescriptions Table */}
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -659,8 +637,7 @@ export default function PrescriptionsPage() {
           </TableBody>
         </Table>
       </div>
-
-      {/* Prescription Dialog */}
+      
       <Dialog open={prescriptionDialogOpen} onOpenChange={setPrescriptionDialogOpen}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
@@ -833,7 +810,6 @@ export default function PrescriptionsPage() {
         </DialogContent>
       </Dialog>
       
-      {/* Add Medicine Dialog */}
       <Dialog open={itemDialogOpen} onOpenChange={setItemDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -931,7 +907,6 @@ export default function PrescriptionsPage() {
         </DialogContent>
       </Dialog>
       
-      {/* View Prescription Dialog */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
@@ -1038,7 +1013,6 @@ export default function PrescriptionsPage() {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    // Edit prescription
                     prescriptionForm.reset({
                       customer_id: currentPrescription.customer_id || '',
                       doctor_name: currentPrescription.doctor_name,
@@ -1055,7 +1029,6 @@ export default function PrescriptionsPage() {
                 </Button>
                 <Button
                   onClick={() => {
-                    // Convert prescription to sale
                     toast({
                       title: "Feature in progress",
                       description: "Converting to sale will be available soon",
@@ -1070,7 +1043,6 @@ export default function PrescriptionsPage() {
         </DialogContent>
       </Dialog>
       
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

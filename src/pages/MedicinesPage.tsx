@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -58,7 +57,6 @@ interface Medicine {
   created_at: string;
 }
 
-// Validation schema for the medicine form
 const medicineFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters" }),
   stock_quantity: z.number().min(0, { message: "Quantity cannot be negative" }),
@@ -83,7 +81,6 @@ export default function MedicinesPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Initialize the form
   const form = useForm<z.infer<typeof medicineFormSchema>>({
     resolver: zodResolver(medicineFormSchema),
     defaultValues: {
@@ -97,7 +94,6 @@ export default function MedicinesPage() {
     },
   });
 
-  // Check user role on component mount
   useEffect(() => {
     const checkUserRole = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -125,7 +121,6 @@ export default function MedicinesPage() {
     checkUserRole();
   }, [navigate, toast]);
 
-  // Fetch medicines data
   const fetchMedicines = async () => {
     try {
       const { data, error } = await supabase
@@ -138,7 +133,6 @@ export default function MedicinesPage() {
       if (data) {
         setMedicines(data as Medicine[]);
         
-        // Extract unique categories
         const uniqueCategories = Array.from(
           new Set(data.map(med => med.category).filter(Boolean))
         ) as string[];
@@ -159,7 +153,6 @@ export default function MedicinesPage() {
   useEffect(() => {
     fetchMedicines();
 
-    // Set up real-time subscription
     const channel = supabase
       .channel('medicines-changes')
       .on('postgres_changes', {
@@ -174,14 +167,12 @@ export default function MedicinesPage() {
     };
   }, [sortField, sortDirection]);
 
-  // Filter medicines based on search query and category
   const filteredMedicines = medicines.filter((med) => {
     const matchesSearch = med.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || med.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  // Handle sorting
   const handleSort = (field: string) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -191,7 +182,6 @@ export default function MedicinesPage() {
     }
   };
 
-  // Open the add/edit dialog
   const openDialog = (medicine?: Medicine) => {
     if (medicine) {
       setCurrentMedicine(medicine);
@@ -219,14 +209,20 @@ export default function MedicinesPage() {
     setDialogOpen(true);
   };
 
-  // Handle medicine form submission
   const onSubmit = async (values: z.infer<typeof medicineFormSchema>) => {
     try {
       if (currentMedicine) {
-        // Update existing medicine
         const { error } = await supabase
           .from('medicines')
-          .update(values)
+          .update({
+            name: values.name,
+            unit_price: values.unit_price,
+            stock_quantity: values.stock_quantity,
+            category: values.category,
+            description: values.description,
+            expiry_date: values.expiry_date,
+            manufacturer: values.manufacturer,
+          })
           .eq('id', currentMedicine.id);
 
         if (error) throw error;
@@ -236,10 +232,17 @@ export default function MedicinesPage() {
           description: `${values.name} has been updated successfully`,
         });
       } else {
-        // Add new medicine - FIX: Don't wrap values in an array
         const { error } = await supabase
           .from('medicines')
-          .insert(values); // This was the issue, values was being wrapped in an array
+          .insert({
+            name: values.name,
+            unit_price: values.unit_price,
+            stock_quantity: values.stock_quantity,
+            category: values.category,
+            description: values.description,
+            expiry_date: values.expiry_date,
+            manufacturer: values.manufacturer,
+          });
 
         if (error) throw error;
 
@@ -259,13 +262,11 @@ export default function MedicinesPage() {
     }
   };
 
-  // Open delete confirmation dialog
   const openDeleteDialog = (medicine: Medicine) => {
     setCurrentMedicine(medicine);
     setDeleteDialogOpen(true);
   };
 
-  // Handle medicine deletion
   const handleDelete = async () => {
     if (!currentMedicine) return;
 
@@ -292,7 +293,6 @@ export default function MedicinesPage() {
     }
   };
 
-  // Format price
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -300,7 +300,6 @@ export default function MedicinesPage() {
     }).format(price);
   };
 
-  // Get stock status badge
   const getStockBadge = (quantity: number) => {
     if (quantity <= 0) {
       return <Badge variant="destructive">Out of Stock</Badge>;
@@ -311,13 +310,11 @@ export default function MedicinesPage() {
     }
   };
 
-  // Format date
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "N/A";
     return new Date(dateString).toLocaleDateString();
   };
 
-  // Loading state
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -351,7 +348,6 @@ export default function MedicinesPage() {
         </div>
       </div>
       
-      {/* Filters */}
       <div className="flex flex-col gap-4 md:flex-row">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
@@ -383,7 +379,6 @@ export default function MedicinesPage() {
         </div>
       </div>
       
-      {/* Medicines Table */}
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -480,7 +475,6 @@ export default function MedicinesPage() {
         </Table>
       </div>
       
-      {/* Medicine Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -614,7 +608,6 @@ export default function MedicinesPage() {
         </DialogContent>
       </Dialog>
       
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
