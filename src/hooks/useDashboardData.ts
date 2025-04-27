@@ -39,9 +39,11 @@ export const useDashboardData = () => {
         { data: activity }
       ] = await Promise.all([
         supabase.from('medicines').select('count').single(),
+        // Fix: Use query to compare with reorder_level as a direct column comparison
+        // instead of using the non-existent 'get_reorder_level' RPC function
         supabase.from('medicines')
           .select('id')
-          .lt('stock_quantity', supabase.rpc('get_reorder_level')), // Fix for the original error
+          .lt('stock_quantity', 'reorder_level'),
         supabase.from('medicines')
           .select('id')
           .lt('expiry_date', `${today}`),
