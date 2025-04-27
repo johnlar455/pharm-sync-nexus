@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -134,6 +133,10 @@ const App: React.FC = () => {
               <Routes>
                 <Route 
                   path="/" 
+                  element={<Navigate to="/dashboard" replace />} 
+                />
+                <Route 
+                  path="/dashboard" 
                   element={
                     isAuthorized(['admin', 'pharmacist']) ? (
                       <DashboardPage />

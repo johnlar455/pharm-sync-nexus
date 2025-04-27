@@ -6,8 +6,9 @@ const Index = () => {
   const navigate = useNavigate();
   
   useEffect(() => {
-    // Redirect to dashboard
-    navigate('/');
+    // Redirect to dashboard page instead of trying to redirect to '/'
+    // which causes an infinite loop since Index component is likely mounted at '/'
+    navigate('/dashboard', { replace: true });
   }, [navigate]);
 
   return (
