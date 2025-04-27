@@ -6,13 +6,8 @@ const Index = () => {
   const navigate = useNavigate();
   
   useEffect(() => {
-    // Redirect to dashboard or login
-    const user = sessionStorage.getItem('user');
-    if (user) {
-      navigate('/');
-    } else {
-      navigate('/login');
-    }
+    // Redirect to dashboard
+    navigate('/');
   }, [navigate]);
 
   return (

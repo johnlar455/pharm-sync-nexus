@@ -41,7 +41,7 @@ export const useDashboardData = () => {
         supabase.from('medicines').select('count').single(),
         supabase.from('medicines')
           .select('id')
-          .lt('stock_quantity', 10), // Use a fixed value for reorder level
+          .lt('stock_quantity', supabase.rpc('get_reorder_level')), // Fix for the original error
         supabase.from('medicines')
           .select('id')
           .lt('expiry_date', `${today}`),

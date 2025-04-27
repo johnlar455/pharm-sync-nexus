@@ -1,27 +1,13 @@
+
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import { Search, Plus, Filter, ArrowDown, ArrowUp, FileText, Download, Eye, Trash2, FilePlus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
+import { 
+  Card, 
+  CardContent, 
+  CardHeader, 
+  CardTitle, 
+  CardDescription 
+} from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -29,177 +15,177 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogClose,
-} from '@/components/ui/dialog';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-
-interface PrescriptionItem {
-  id: string;
-  prescription_id: string;
-  medicine_id: string;
-  medicine: {
-    name: string;
-    unit_price: number;
-  };
-  quantity: number;
-  dosage: string | null;
-  instructions: string | null;
-}
-
-interface Prescription {
-  id: string;
-  customer_id: string | null;
-  customer: {
-    full_name: string;
-  } | null;
-  created_at: string;
-  prescription_date: string;
-  doctor_name: string;
-  notes: string | null;
-  status: string | null;
-  items: PrescriptionItem[];
-  created_by?: string;
-  updated_at?: string;
-}
-
-interface Customer {
-  id: string;
-  full_name: string;
-  email: string | null;
-  phone: string | null;
-}
+} from "@/components/ui/dialog";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Tabs, 
+  TabsContent, 
+  TabsList, 
+  TabsTrigger 
+} from '@/components/ui/tabs';
+import { toast } from "sonner";
+import { 
+  Search, 
+  Plus, 
+  Eye, 
+  Edit, 
+  Trash2,
+  UserPlus,
+  Stethoscope,
+  Calendar,
+  FilterX,
+  FileText,
+  PlusCircle
+} from 'lucide-react';
+import { format, isValid, parseISO } from 'date-fns';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { useNavigate } from 'react-router-dom';
+import { DialogClose } from '@radix-ui/react-dialog';
 
 interface Medicine {
   id: string;
   name: string;
   unit_price: number;
-  stock_quantity: number;
 }
 
-const prescriptionFormSchema = z.object({
-  customer_id: z.string().min(1, { message: "Customer is required" }),
-  doctor_name: z.string().min(1, { message: "Doctor name is required" }),
-  prescription_date: z.string().min(1, { message: "Date is required" }),
-  notes: z.string().optional(),
-  status: z.string().default('active'),
-});
+interface Customer {
+  id: string;
+  full_name: string;
+}
 
-const prescriptionItemSchema = z.object({
-  medicine_id: z.string().min(1, { message: "Medicine is required" }),
-  quantity: z.number().min(1, { message: "Quantity must be at least 1" }),
-  dosage: z.string().optional(),
-  instructions: z.string().optional(),
-});
+interface PrescriptionItem {
+  id: string;
+  medicine_id: string;
+  prescription_id: string;
+  quantity: number;
+  dosage: string | null;
+  instructions: string | null;
+  medicine?: {
+    name: string;
+    unit_price: number;
+  };
+}
+
+interface Prescription {
+  id: string;
+  customer_id: string;
+  doctor_name: string;
+  notes: string | null;
+  prescription_date: string;
+  status: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+  customer?: {
+    full_name: string;
+  };
+  items: PrescriptionItem[];
+}
+
+// Prescription status options
+const statusOptions = [
+  'pending', 
+  'completed', 
+  'cancelled'
+];
 
 export default function PrescriptionsPage() {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+  const [filteredPrescriptions, setFilteredPrescriptions] = useState<Prescription[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [medicines, setMedicines] = useState<Medicine[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [sortField, setSortField] = useState('prescription_date');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [date, setDate] = useState<Date | undefined>(undefined);
   
-  const [prescriptionDialogOpen, setPrescriptionDialogOpen] = useState(false);
-  const [itemDialogOpen, setItemDialogOpen] = useState(false);
-  const [viewDialogOpen, setViewDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  // Dialog states
+  const [openAddDialog, setOpenAddDialog] = useState(false);
+  const [openViewDialog, setOpenViewDialog] = useState(false);
+  const [openEditDialog, setOpenEditDialog] = useState(false);
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null);
   
-  const [currentPrescription, setCurrentPrescription] = useState<Prescription | null>(null);
-  const [prescriptionItems, setPrescriptionItems] = useState<PrescriptionItem[]>([]);
-  
-  const { toast } = useToast();
-  const navigate = useNavigate();
-
-  const prescriptionForm = useForm<z.infer<typeof prescriptionFormSchema>>({
-    resolver: zodResolver(prescriptionFormSchema),
-    defaultValues: {
-      customer_id: "",
-      doctor_name: "",
-      prescription_date: new Date().toISOString().split('T')[0],
-      notes: "",
-      status: "active",
-    },
+  // Form states
+  const [formData, setFormData] = useState({
+    customer_id: '',
+    doctor_name: '',
+    prescription_date: '',
+    notes: '',
+    status: 'pending'
   });
-
-  const itemForm = useForm<z.infer<typeof prescriptionItemSchema>>({
-    resolver: zodResolver(prescriptionItemSchema),
-    defaultValues: {
-      medicine_id: "",
-      quantity: 1,
-      dosage: "",
-      instructions: "",
-    },
-  });
-
+  
+  const [prescriptionItems, setPrescriptionItems] = useState<Array<{
+    id?: string;
+    medicine_id: string;
+    quantity: number;
+    dosage: string;
+    instructions: string;
+  }>>([]);
+  
   useEffect(() => {
-    const checkUserRole = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        navigate('/login');
-        return;
-      }
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .single();
-
-      if (profile?.role !== 'admin' && profile?.role !== 'pharmacist') {
-        toast({
-          title: "Access denied",
-          description: "You don't have permission to access this page",
-          variant: "destructive",
-        });
-        navigate('/');
-      }
-    };
-
-    checkUserRole();
-  }, [navigate, toast]);
-
-  const fetchData = async () => {
-    try {
-      const { data: customersData, error: customersError } = await supabase
-        .from('customers')
-        .select('id, full_name, email, phone')
-        .order('full_name');
-
-      if (customersError) throw customersError;
-      if (customersData) setCustomers(customersData as Customer[]);
+    fetchPrescriptions();
+    fetchCustomers();
+    fetchMedicines();
+    
+    // Subscribe to changes
+    const channel = supabase
+      .channel('prescriptions-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'prescriptions' }, fetchPrescriptions)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'prescription_items' }, fetchPrescriptions)
+      .subscribe();
       
-      const { data: medicinesData, error: medicinesError } = await supabase
-        .from('medicines')
-        .select('id, name, unit_price, stock_quantity')
-        .order('name');
-
-      if (medicinesError) throw medicinesError;
-      if (medicinesData) setMedicines(medicinesData as Medicine[]);
-
-    } catch (error) {
-      toast({
-        title: "Error fetching data",
-        description: "Failed to load required data",
-        variant: "destructive",
-      });
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+  
+  useEffect(() => {
+    let result = [...prescriptions];
+    
+    // Apply search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(prescription => 
+        prescription.customer?.full_name.toLowerCase().includes(query) || 
+        prescription.doctor_name.toLowerCase().includes(query) ||
+        prescription.items.some(item => 
+          item.medicine?.name.toLowerCase().includes(query)
+        )
+      );
     }
-  };
+    
+    // Apply status filter
+    if (statusFilter) {
+      result = result.filter(prescription => prescription.status === statusFilter);
+    }
+    
+    setFilteredPrescriptions(result);
+  }, [prescriptions, searchQuery, statusFilter]);
 
   const fetchPrescriptions = async () => {
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('prescriptions')
@@ -209,856 +195,890 @@ export default function PrescriptionsPage() {
             full_name
           ),
           items:prescription_items (
-            id,
-            medicine_id,
-            prescription_id,
-            quantity,
-            dosage,
-            instructions,
+            *,
             medicine:medicine_id (
               name,
               unit_price
             )
           )
         `)
-        .order(sortField, { ascending: sortDirection === 'asc' });
-
+        .order('created_at', { ascending: false });
+        
       if (error) throw error;
       
-      if (data) {
-        setPrescriptions(data as unknown as Prescription[]);
-      }
-    } catch (error) {
-      toast({
-        title: "Error fetching prescriptions",
-        description: "Failed to load prescription data",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-    fetchPrescriptions();
-    
-    const channel = supabase
-      .channel('prescription-changes')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'prescriptions'
-      }, () => fetchPrescriptions())
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'prescription_items'
-      }, () => fetchPrescriptions())
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [sortField, sortDirection]);
-
-  const filteredPrescriptions = prescriptions.filter((prescription) => {
-    const matchesSearch = 
-      prescription.customer?.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      prescription.doctor_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      prescription.notes?.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'all' || prescription.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
-  };
-
-  const handleSort = (field: string) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('desc');
-    }
-  };
-
-  const openNewPrescriptionDialog = () => {
-    prescriptionForm.reset({
-      customer_id: "",
-      doctor_name: "",
-      prescription_date: new Date().toISOString().split('T')[0],
-      notes: "",
-      status: "active",
-    });
-    setPrescriptionItems([]);
-    setCurrentPrescription(null);
-    setPrescriptionDialogOpen(true);
-  };
-
-  const openViewPrescriptionDialog = (prescription: Prescription) => {
-    setCurrentPrescription(prescription);
-    setViewDialogOpen(true);
-  };
-
-  const openDeleteDialog = (prescription: Prescription) => {
-    setCurrentPrescription(prescription);
-    setDeleteDialogOpen(true);
-  };
-
-  const openAddMedicineDialog = () => {
-    itemForm.reset({
-      medicine_id: "",
-      quantity: 1,
-      dosage: "",
-      instructions: "",
-    });
-    setItemDialogOpen(true);
-  };
-
-  const handleAddMedicine = (values: z.infer<typeof prescriptionItemSchema>) => {
-    const medicine = medicines.find(med => med.id === values.medicine_id);
-    
-    if (!medicine) {
-      toast({
-        title: "Error",
-        description: "Selected medicine not found",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    const existingItemIndex = prescriptionItems.findIndex(
-      item => item.medicine_id === values.medicine_id
-    );
-    
-    if (existingItemIndex >= 0) {
-      const updatedItems = [...prescriptionItems];
-      updatedItems[existingItemIndex] = {
-        ...updatedItems[existingItemIndex],
-        quantity: values.quantity,
-        dosage: values.dosage || null,
-        instructions: values.instructions || null,
-      };
-      setPrescriptionItems(updatedItems);
-    } else {
-      setPrescriptionItems([
-        ...prescriptionItems,
-        {
-          id: `temp-${Date.now()}`,
-          prescription_id: currentPrescription?.id || 'new',
-          medicine_id: values.medicine_id,
-          medicine: {
-            name: medicine.name,
-            unit_price: medicine.unit_price,
-          },
-          quantity: values.quantity,
-          dosage: values.dosage || null,
-          instructions: values.instructions || null,
-        },
-      ]);
-    }
-    
-    setItemDialogOpen(false);
-  };
-
-  const handleRemoveMedicine = (itemId: string) => {
-    setPrescriptionItems(prescriptionItems.filter(item => item.id !== itemId));
-  };
-
-  const onSubmitPrescription = async (values: z.infer<typeof prescriptionFormSchema>) => {
-    try {
-      if (prescriptionItems.length === 0) {
-        toast({
-          title: "No medicines added",
-          description: "Please add at least one medicine to the prescription",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      let prescriptionId = currentPrescription?.id;
-      
-      if (!prescriptionId) {
-        const { data, error } = await supabase
-          .from('prescriptions')
-          .insert({
-            customer_id: values.customer_id,
-            doctor_name: values.doctor_name,
-            prescription_date: values.prescription_date,
-            notes: values.notes || null,
-            status: values.status
-          })
-          .select('id')
-          .single();
-        
-        if (error) throw error;
-        prescriptionId = data.id;
-      } else {
-        const { error } = await supabase
-          .from('prescriptions')
-          .update({
-            customer_id: values.customer_id,
-            doctor_name: values.doctor_name,
-            prescription_date: values.prescription_date,
-            notes: values.notes || null,
-            status: values.status
-          })
-          .eq('id', prescriptionId);
-        
-        if (error) throw error;
-        
-        const { error: deleteError } = await supabase
-          .from('prescription_items')
-          .delete()
-          .eq('prescription_id', prescriptionId);
-        
-        if (deleteError) throw deleteError;
-      }
-      
-      const prescriptionItemsData = prescriptionItems.map(item => ({
-        prescription_id: prescriptionId,
-        medicine_id: item.medicine_id,
-        quantity: item.quantity,
-        dosage: item.dosage,
-        instructions: item.instructions,
+      // Fix the type issue by explicitly typing as Prescription[]
+      const typedData: Prescription[] = (data || []).map(prescription => ({
+        ...prescription,
+        items: prescription.items.map(item => ({
+          ...item,
+          prescription_id: prescription.id // Ensure prescription_id is included
+        }))
       }));
       
+      setPrescriptions(typedData);
+    } catch (error: any) {
+      toast.error('Failed to fetch prescriptions', {
+        description: error.message
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchCustomers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id, full_name')
+        .order('full_name');
+        
+      if (error) throw error;
+      
+      setCustomers(data || []);
+    } catch (error: any) {
+      toast.error('Failed to fetch customers', {
+        description: error.message
+      });
+    }
+  };
+
+  const fetchMedicines = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('medicines')
+        .select('id, name, unit_price')
+        .order('name');
+        
+      if (error) throw error;
+      
+      setMedicines(data || []);
+    } catch (error: any) {
+      toast.error('Failed to fetch medicines', {
+        description: error.message
+      });
+    }
+  };
+  
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSelectChange = (name: string, value: string) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+  
+  const handleDateSelect = (date: Date | undefined) => {
+    setDate(date);
+    if (date) {
+      setFormData(prev => ({ ...prev, prescription_date: format(date, 'yyyy-MM-dd') }));
+    } else {
+      setFormData(prev => ({ ...prev, prescription_date: '' }));
+    }
+  };
+
+  const addPrescriptionItem = () => {
+    setPrescriptionItems(prev => [
+      ...prev,
+      {
+        medicine_id: '',
+        quantity: 1,
+        dosage: '',
+        instructions: ''
+      }
+    ]);
+  };
+
+  const removePrescriptionItem = (index: number) => {
+    setPrescriptionItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updatePrescriptionItem = (index: number, field: keyof PrescriptionItem, value: any) => {
+    setPrescriptionItems(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const validateForm = () => {
+    if (!formData.customer_id) {
+      toast.error('Please select a customer');
+      return false;
+    }
+
+    if (!formData.doctor_name) {
+      toast.error('Doctor name is required');
+      return false;
+    }
+
+    if (!formData.prescription_date) {
+      toast.error('Prescription date is required');
+      return false;
+    }
+
+    if (prescriptionItems.length === 0) {
+      toast.error('Please add at least one medicine');
+      return false;
+    }
+
+    for (let i = 0; i < prescriptionItems.length; i++) {
+      if (!prescriptionItems[i].medicine_id) {
+        toast.error(`Please select a medicine for item #${i + 1}`);
+        return false;
+      }
+      
+      if (!prescriptionItems[i].quantity || prescriptionItems[i].quantity <= 0) {
+        toast.error(`Quantity must be greater than 0 for item #${i + 1}`);
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const handleAddPrescription = async () => {
+    if (!validateForm()) return;
+
+    try {
+      // Insert prescription
+      const { data: prescriptionData, error: prescriptionError } = await supabase
+        .from('prescriptions')
+        .insert({
+          customer_id: formData.customer_id,
+          doctor_name: formData.doctor_name, // Required
+          prescription_date: formData.prescription_date, // Required
+          notes: formData.notes || null,
+          status: formData.status
+        })
+        .select()
+        .single();
+
+      if (prescriptionError) throw prescriptionError;
+
+      // Insert prescription items
+      const items = prescriptionItems.map(item => ({
+        prescription_id: prescriptionData.id,
+        medicine_id: item.medicine_id,
+        quantity: item.quantity,
+        dosage: item.dosage || null,
+        instructions: item.instructions || null
+      }));
+
       const { error: itemsError } = await supabase
         .from('prescription_items')
-        .insert(prescriptionItemsData);
-      
+        .insert(items);
+
       if (itemsError) throw itemsError;
-      
-      toast({
-        title: currentPrescription ? "Prescription updated" : "Prescription created",
-        description: `Prescription has been ${currentPrescription ? 'updated' : 'created'} successfully`,
+
+      toast.success('Prescription added successfully');
+      setOpenAddDialog(false);
+      resetForm();
+    } catch (error: any) {
+      toast.error('Failed to add prescription', {
+        description: error.message
       });
-      
-      setPrescriptionDialogOpen(false);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: `Failed to ${currentPrescription ? 'update' : 'create'} prescription`,
-        variant: "destructive",
+    }
+  };
+
+  const handleEditPrescription = async () => {
+    if (!validateForm() || !selectedPrescription) return;
+
+    try {
+      // Update prescription
+      const { error: prescriptionError } = await supabase
+        .from('prescriptions')
+        .update({
+          customer_id: formData.customer_id,
+          doctor_name: formData.doctor_name, // Required
+          prescription_date: formData.prescription_date, // Required
+          notes: formData.notes || null,
+          status: formData.status
+        })
+        .eq('id', selectedPrescription.id);
+
+      if (prescriptionError) throw prescriptionError;
+
+      // Delete existing prescription items
+      const { error: deleteError } = await supabase
+        .from('prescription_items')
+        .delete()
+        .eq('prescription_id', selectedPrescription.id);
+
+      if (deleteError) throw deleteError;
+
+      // Insert new prescription items
+      const items = prescriptionItems.map(item => ({
+        prescription_id: selectedPrescription.id,
+        medicine_id: item.medicine_id,
+        quantity: item.quantity,
+        dosage: item.dosage || null,
+        instructions: item.instructions || null
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('prescription_items')
+        .insert(items);
+
+      if (itemsError) throw itemsError;
+
+      toast.success('Prescription updated successfully');
+      setOpenEditDialog(false);
+    } catch (error: any) {
+      toast.error('Failed to update prescription', {
+        description: error.message
       });
     }
   };
 
   const handleDeletePrescription = async () => {
-    if (!currentPrescription) return;
-    
+    if (!selectedPrescription) return;
+
     try {
-      const { error } = await supabase
+      // Delete prescription items first
+      const { error: itemsError } = await supabase
+        .from('prescription_items')
+        .delete()
+        .eq('prescription_id', selectedPrescription.id);
+
+      if (itemsError) throw itemsError;
+
+      // Then delete the prescription
+      const { error: prescriptionError } = await supabase
         .from('prescriptions')
         .delete()
-        .eq('id', currentPrescription.id);
-      
-      if (error) throw error;
-      
-      toast({
-        title: "Prescription deleted",
-        description: "Prescription and all associated items have been deleted",
+        .eq('id', selectedPrescription.id);
+
+      if (prescriptionError) throw prescriptionError;
+
+      toast.success('Prescription deleted successfully');
+      setOpenDeleteDialog(false);
+    } catch (error: any) {
+      toast.error('Failed to delete prescription', {
+        description: error.message
       });
-      
-      setDeleteDialogOpen(false);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete prescription",
-        variant: "destructive",
-      });
+    }
+  };
+
+  const openView = (prescription: Prescription) => {
+    setSelectedPrescription(prescription);
+    setOpenViewDialog(true);
+  };
+
+  const openEdit = (prescription: Prescription) => {
+    setSelectedPrescription(prescription);
+    setFormData({
+      customer_id: prescription.customer_id,
+      doctor_name: prescription.doctor_name,
+      prescription_date: prescription.prescription_date,
+      notes: prescription.notes || '',
+      status: prescription.status || 'pending'
+    });
+    
+    // Set date for the date picker
+    setDate(parseISO(prescription.prescription_date));
+    
+    // Set prescription items
+    setPrescriptionItems(prescription.items.map(item => ({
+      id: item.id,
+      medicine_id: item.medicine_id,
+      quantity: item.quantity,
+      dosage: item.dosage || '',
+      instructions: item.instructions || ''
+    })));
+    
+    setOpenEditDialog(true);
+  };
+
+  const openDelete = (prescription: Prescription) => {
+    setSelectedPrescription(prescription);
+    setOpenDeleteDialog(true);
+  };
+
+  const resetForm = () => {
+    setFormData({
+      customer_id: '',
+      doctor_name: '',
+      prescription_date: '',
+      notes: '',
+      status: 'pending'
+    });
+    setPrescriptionItems([]);
+    setDate(undefined);
+  };
+
+  const resetFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('');
+  };
+
+  const formatDate = (dateString: string) => {
+    try {
+      const date = parseISO(dateString);
+      if (!isValid(date)) return 'Invalid date';
+      return format(date, 'MMM dd, yyyy');
+    } catch {
+      return 'Invalid date';
     }
   };
 
   const getStatusBadge = (status: string | null) => {
     switch (status) {
-      case 'active':
-        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Active</Badge>;
       case 'completed':
-        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">Completed</Badge>;
+        return (
+          <Badge className="bg-green-100 text-green-800">
+            Completed
+          </Badge>
+        );
       case 'cancelled':
-        return <Badge variant="destructive">Cancelled</Badge>;
+        return (
+          <Badge variant="destructive">
+            Cancelled
+          </Badge>
+        );
       default:
-        return <Badge variant="outline">Unknown</Badge>;
+        return (
+          <Badge variant="outline" className="border-yellow-400 bg-yellow-50 text-yellow-700">
+            Pending
+          </Badge>
+        );
     }
   };
 
-  const calculateTotal = (items: PrescriptionItem[]) => {
-    return items.reduce((sum, item) => sum + (item.medicine.unit_price * item.quantity), 0);
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-pharmacy-200 border-t-pharmacy-600"></div>
-        <p className="ml-2">Loading prescriptions...</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Prescriptions</h1>
-          <p className="text-muted-foreground">Manage patient prescriptions</p>
-        </div>
-        
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => toast({ title: "Report Generated", description: "Prescriptions report has been generated" })}>
-            <FileText className="mr-2 h-4 w-4" />
-            Report
-          </Button>
-          <Button variant="outline" onClick={() => toast({ title: "Export Started", description: "Prescriptions export has started" })}>
-            <Download className="mr-2 h-4 w-4" />
-            Export
-          </Button>
-          <Button onClick={openNewPrescriptionDialog}>
-            <FilePlus className="mr-2 h-4 w-4" />
-            New Prescription
-          </Button>
-        </div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-3xl font-bold">Prescriptions</h1>
+        <Button onClick={() => { resetForm(); addPrescriptionItem(); setOpenAddDialog(true); }} className="mt-4 sm:mt-0">
+          <Plus className="mr-2 h-4 w-4" /> New Prescription
+        </Button>
       </div>
-      
-      <div className="flex flex-col gap-4 md:flex-row">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-          <Input
-            type="search"
-            placeholder="Search prescriptions..."
-            className="w-full pl-8"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-gray-500" />
-          <Select
-            value={statusFilter}
-            onValueChange={setStatusFilter}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>
-                <button
-                  className="flex items-center"
-                  onClick={() => handleSort('prescription_date')}
-                >
-                  Date
-                  {sortField === 'prescription_date' && (
-                    sortDirection === 'asc' ? <ArrowUp className="ml-1 h-3 w-3" /> : <ArrowDown className="ml-1 h-3 w-3" />
-                  )}
-                </button>
-              </TableHead>
-              <TableHead>
-                <button
-                  className="flex items-center"
-                  onClick={() => handleSort('customer.full_name')}
-                >
-                  Patient
-                  {sortField === 'customer.full_name' && (
-                    sortDirection === 'asc' ? <ArrowUp className="ml-1 h-3 w-3" /> : <ArrowDown className="ml-1 h-3 w-3" />
-                  )}
-                </button>
-              </TableHead>
-              <TableHead>
-                <button
-                  className="flex items-center"
-                  onClick={() => handleSort('doctor_name')}
-                >
-                  Doctor
-                  {sortField === 'doctor_name' && (
-                    sortDirection === 'asc' ? <ArrowUp className="ml-1 h-3 w-3" /> : <ArrowDown className="ml-1 h-3 w-3" />
-                  )}
-                </button>
-              </TableHead>
-              <TableHead>Items</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Notes</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredPrescriptions.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
-                  No prescriptions found.
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredPrescriptions.map((prescription) => (
-                <TableRow key={prescription.id}>
-                  <TableCell>{formatDate(prescription.prescription_date)}</TableCell>
-                  <TableCell className="font-medium">{prescription.customer?.full_name || 'Unknown'}</TableCell>
-                  <TableCell>{prescription.doctor_name}</TableCell>
-                  <TableCell>{prescription.items?.length || 0} items</TableCell>
-                  <TableCell>{getStatusBadge(prescription.status)}</TableCell>
-                  <TableCell className="max-w-[200px] truncate">{prescription.notes || '-'}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => openViewPrescriptionDialog(prescription)}>
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => openDeleteDialog(prescription)}>
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      
-      <Dialog open={prescriptionDialogOpen} onOpenChange={setPrescriptionDialogOpen}>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>{currentPrescription ? 'Edit Prescription' : 'New Prescription'}</DialogTitle>
-            <DialogDescription>
-              {currentPrescription ? 'Update prescription details' : 'Create a new prescription for a patient'}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <Form {...prescriptionForm}>
-            <form onSubmit={prescriptionForm.handleSubmit(onSubmitPrescription)} className="space-y-4">
-              <FormField
-                control={prescriptionForm.control}
-                name="customer_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Patient</FormLabel>
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select patient" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {customers.map((customer) => (
-                          <SelectItem key={customer.id} value={customer.id}>
-                            {customer.full_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={prescriptionForm.control}
-                  name="doctor_name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Doctor's Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Doctor's name" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={prescriptionForm.control}
-                  name="prescription_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Date</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
+            <CardTitle>All Prescriptions</CardTitle>
+            <div className="flex flex-col space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+                <Input
+                  className="pl-8"
+                  placeholder="Search prescriptions..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              
-              <FormField
-                control={prescriptionForm.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                        <SelectItem value="cancelled">Cancelled</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={prescriptionForm.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Notes (Optional)</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Additional notes" {...field} value={field.value || ''} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium">Medicines</h3>
-                  <Button type="button" variant="outline" size="sm" onClick={openAddMedicineDialog}>
-                    <Plus className="mr-1 h-4 w-4" /> Add Medicine
-                  </Button>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All statuses</SelectItem>
+                  {statusOptions.map(status => (
+                    <SelectItem key={status} value={status}>{status.charAt(0).toUpperCase() + status.slice(1)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={resetFilters} className="flex-shrink-0">
+                <FilterX className="mr-2 h-4 w-4" /> Reset
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex h-48 items-center justify-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-pharmacy-200 border-t-pharmacy-600"></div>
+              <p className="ml-2">Loading prescriptions...</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              {filteredPrescriptions.length === 0 ? (
+                <div className="flex h-32 flex-col items-center justify-center rounded-lg border bg-gray-50 p-4 text-center dark:bg-gray-900">
+                  <p className="text-lg font-medium">No prescriptions found</p>
+                  <p className="text-sm text-muted-foreground">
+                    {searchQuery || statusFilter ? 'Try adjusting your filters' : 'Add a new prescription to get started'}
+                  </p>
                 </div>
-                
-                {prescriptionItems.length === 0 ? (
-                  <div className="rounded-md border border-dashed p-6 text-center">
-                    <p className="text-muted-foreground">No medicines added yet</p>
-                    <Button type="button" variant="link" onClick={openAddMedicineDialog}>
-                      Add medicine
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Doctor</TableHead>
+                      <TableHead>Items</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredPrescriptions.map((prescription) => (
+                      <TableRow key={prescription.id}>
+                        <TableCell>{formatDate(prescription.prescription_date)}</TableCell>
+                        <TableCell>{prescription.customer?.full_name || 'Unknown'}</TableCell>
+                        <TableCell>{prescription.doctor_name}</TableCell>
+                        <TableCell>{prescription.items.length} medicine(s)</TableCell>
+                        <TableCell>{getStatusBadge(prescription.status)}</TableCell>
+                        <TableCell>
+                          <div className="flex space-x-2">
+                            <Button size="sm" variant="ghost" onClick={() => openView(prescription)}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => openEdit(prescription)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => openDelete(prescription)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Add Prescription Dialog */}
+      <Dialog open={openAddDialog} onOpenChange={setOpenAddDialog}>
+        <DialogContent className="max-h-[90vh] max-w-[800px] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>New Prescription</DialogTitle>
+            <DialogDescription>Create a new prescription for a patient.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-6 py-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="customer">Patient*</Label>
+                <Select 
+                  name="customer_id" 
+                  value={formData.customer_id} 
+                  onValueChange={(value) => handleSelectChange('customer_id', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select patient" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map(customer => (
+                      <SelectItem key={customer.id} value={customer.id}>
+                        {customer.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="doctor_name">Doctor's Name*</Label>
+                <Input id="doctor_name" name="doctor_name" value={formData.doctor_name} onChange={handleInputChange} />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Prescription Date*</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {date ? format(date, "PPP") : <span>Pick a date</span>}
                     </Button>
-                  </div>
-                ) : (
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Medicine</TableHead>
-                          <TableHead>Qty</TableHead>
-                          <TableHead>Dosage</TableHead>
-                          <TableHead>Instructions</TableHead>
-                          <TableHead className="text-right">Action</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {prescriptionItems.map((item) => (
-                          <TableRow key={item.id}>
-                            <TableCell>{item.medicine.name}</TableCell>
-                            <TableCell>{item.quantity}</TableCell>
-                            <TableCell>{item.dosage || '-'}</TableCell>
-                            <TableCell className="max-w-[200px] truncate">{item.instructions || '-'}</TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveMedicine(item.id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-red-500" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <CalendarComponent
+                      mode="single"
+                      selected={date}
+                      onSelect={handleDateSelect}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <Select 
+                  name="status" 
+                  value={formData.status} 
+                  onValueChange={(value) => handleSelectChange('status', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statusOptions.map(status => (
+                      <SelectItem key={status} value={status}>
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes</Label>
+              <Textarea id="notes" name="notes" value={formData.notes} onChange={handleInputChange} />
+            </div>
+            
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium">Medicines</h3>
+                <Button type="button" variant="outline" size="sm" onClick={addPrescriptionItem}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add Medicine
+                </Button>
               </div>
               
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button type="button" variant="outline">Cancel</Button>
-                </DialogClose>
-                <Button type="submit">{currentPrescription ? 'Update Prescription' : 'Create Prescription'}</Button>
-              </DialogFooter>
-            </form>
-          </Form>
+              {prescriptionItems.length === 0 ? (
+                <div className="flex h-20 items-center justify-center rounded border border-dashed">
+                  <p className="text-sm text-muted-foreground">No medicines added yet</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {prescriptionItems.map((item, index) => (
+                    <Card key={index}>
+                      <CardContent className="p-4">
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>Medicine*</Label>
+                            <Select 
+                              value={item.medicine_id}
+                              onValueChange={(value) => updatePrescriptionItem(index, 'medicine_id', value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select medicine" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {medicines.map(medicine => (
+                                  <SelectItem key={medicine.id} value={medicine.id}>
+                                    {medicine.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Quantity*</Label>
+                            <Input 
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => updatePrescriptionItem(index, 'quantity', parseInt(e.target.value) || 0)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Dosage</Label>
+                            <Input 
+                              placeholder="e.g., 1 tablet twice daily"
+                              value={item.dosage}
+                              onChange={(e) => updatePrescriptionItem(index, 'dosage', e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Instructions</Label>
+                            <Input 
+                              placeholder="e.g., Take after meals"
+                              value={item.instructions}
+                              onChange={(e) => updatePrescriptionItem(index, 'instructions', e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <Button 
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="mt-4 text-red-500 hover:text-red-700"
+                          onClick={() => removePrescriptionItem(index)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" /> Remove
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button onClick={handleAddPrescription}>Create Prescription</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
-      
-      <Dialog open={itemDialogOpen} onOpenChange={setItemDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add Medicine</DialogTitle>
-            <DialogDescription>
-              Add a medicine to this prescription
-            </DialogDescription>
-          </DialogHeader>
-          
-          <Form {...itemForm}>
-            <form onSubmit={itemForm.handleSubmit(handleAddMedicine)} className="space-y-4">
-              <FormField
-                control={itemForm.control}
-                name="medicine_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Medicine</FormLabel>
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select medicine" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {medicines.map((medicine) => (
-                          <SelectItem key={medicine.id} value={medicine.id}>
-                            {medicine.name} ({medicine.stock_quantity} in stock)
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={itemForm.control}
-                name="quantity"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Quantity</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="1"
-                        {...field}
-                        onChange={(e) => field.onChange(Number(e.target.value))}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={itemForm.control}
-                name="dosage"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Dosage (Optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., 1 tablet twice daily" {...field} value={field.value || ''} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={itemForm.control}
-                name="instructions"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Instructions (Optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Take after meals" {...field} value={field.value || ''} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button type="button" variant="outline">Cancel</Button>
-                </DialogClose>
-                <Button type="submit">Add Medicine</Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-      
-      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="sm:max-w-xl">
+
+      {/* View Prescription Dialog */}
+      <Dialog open={openViewDialog} onOpenChange={setOpenViewDialog}>
+        <DialogContent className="max-h-[90vh] max-w-[800px] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Prescription Details</DialogTitle>
           </DialogHeader>
           
-          {currentPrescription && (
+          {selectedPrescription && (
             <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm font-medium text-gray-500">Patient</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="font-medium">{currentPrescription.customer?.full_name || 'Unknown'}</p>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm font-medium text-gray-500">Date</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="font-medium">{formatDate(currentPrescription.prescription_date)}</p>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm font-medium text-gray-500">Doctor</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="font-medium">{currentPrescription.doctor_name}</p>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm font-medium text-gray-500">Status</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {getStatusBadge(currentPrescription.status)}
-                  </CardContent>
-                </Card>
-              </div>
-              
-              {currentPrescription.notes && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm font-medium text-gray-500">Notes</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p>{currentPrescription.notes}</p>
-                  </CardContent>
-                </Card>
-              )}
-              
-              <div>
-                <h3 className="mb-2 text-lg font-medium">Medicines</h3>
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Medicine</TableHead>
-                        <TableHead>Dosage</TableHead>
-                        <TableHead>Instructions</TableHead>
-                        <TableHead>Qty</TableHead>
-                        <TableHead className="text-right">Price</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {currentPrescription.items?.length ? (
-                        currentPrescription.items.map((item) => (
-                          <TableRow key={item.id}>
-                            <TableCell className="font-medium">{item.medicine?.name}</TableCell>
-                            <TableCell>{item.dosage || '-'}</TableCell>
-                            <TableCell className="max-w-[200px] truncate">{item.instructions || '-'}</TableCell>
-                            <TableCell>{item.quantity}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(item.medicine.unit_price * item.quantity)}</TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={5} className="h-24 text-center">
-                            No medicines in this prescription
-                          </TableCell>
-                        </TableRow>
-                      )}
-                      {currentPrescription.items?.length > 0 && (
-                        <TableRow>
-                          <TableCell colSpan={3}></TableCell>
-                          <TableCell className="font-bold">Total</TableCell>
-                          <TableCell className="text-right font-bold">
-                            {formatCurrency(calculateTotal(currentPrescription.items))}
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
+              <div className="rounded-lg border p-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <h3 className="flex items-center text-sm font-medium text-muted-foreground">
+                      <UserPlus className="mr-2 h-4 w-4" /> Patient
+                    </h3>
+                    <p className="text-lg">{selectedPrescription.customer?.full_name || 'Unknown'}</p>
+                  </div>
+                  <div>
+                    <h3 className="flex items-center text-sm font-medium text-muted-foreground">
+                      <Stethoscope className="mr-2 h-4 w-4" /> Doctor
+                    </h3>
+                    <p className="text-lg">{selectedPrescription.doctor_name}</p>
+                  </div>
+                  <div>
+                    <h3 className="flex items-center text-sm font-medium text-muted-foreground">
+                      <Calendar className="mr-2 h-4 w-4" /> Prescription Date
+                    </h3>
+                    <p className="text-lg">{formatDate(selectedPrescription.prescription_date)}</p>
+                  </div>
+                  <div>
+                    <h3 className="flex items-center text-sm font-medium text-muted-foreground">
+                      <FileText className="mr-2 h-4 w-4" /> Status
+                    </h3>
+                    <div className="mt-1">
+                      {getStatusBadge(selectedPrescription.status)}
+                    </div>
+                  </div>
                 </div>
+                {selectedPrescription.notes && (
+                  <div className="mt-4 border-t pt-4">
+                    <h3 className="text-sm font-medium text-muted-foreground">Notes</h3>
+                    <p className="mt-1 whitespace-pre-wrap text-sm">{selectedPrescription.notes}</p>
+                  </div>
+                )}
               </div>
               
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    prescriptionForm.reset({
-                      customer_id: currentPrescription.customer_id || '',
-                      doctor_name: currentPrescription.doctor_name,
-                      prescription_date: currentPrescription.prescription_date,
-                      notes: currentPrescription.notes || '',
-                      status: currentPrescription.status || 'active',
-                    });
-                    setPrescriptionItems(currentPrescription.items || []);
-                    setViewDialogOpen(false);
-                    setPrescriptionDialogOpen(true);
-                  }}
-                >
-                  Edit Prescription
-                </Button>
-                <Button
-                  onClick={() => {
-                    toast({
-                      title: "Feature in progress",
-                      description: "Converting to sale will be available soon",
-                    });
-                  }}
-                >
-                  Convert to Sale
-                </Button>
-              </DialogFooter>
+              <h3 className="text-lg font-medium">Prescribed Medicines</h3>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Medicine</TableHead>
+                    <TableHead>Quantity</TableHead>
+                    <TableHead>Dosage</TableHead>
+                    <TableHead>Instructions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {selectedPrescription.items.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium">{item.medicine?.name}</TableCell>
+                      <TableCell>{item.quantity}</TableCell>
+                      <TableCell>{item.dosage || '-'}</TableCell>
+                      <TableCell>{item.instructions || '-'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpenViewDialog(false)}>Close</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete this prescription?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the prescription and all associated items.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeletePrescription} className="bg-red-600 hover:bg-red-700">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Edit Prescription Dialog - Similar structure to Add Dialog */}
+      <Dialog open={openEditDialog} onOpenChange={setOpenEditDialog}>
+        <DialogContent className="max-h-[90vh] max-w-[800px] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Prescription</DialogTitle>
+          </DialogHeader>
+          
+          <div className="grid gap-6 py-4">
+            {/* Same form structure as Add prescription dialog */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="edit-customer">Patient*</Label>
+                <Select 
+                  name="customer_id" 
+                  value={formData.customer_id} 
+                  onValueChange={(value) => handleSelectChange('customer_id', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select patient" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map(customer => (
+                      <SelectItem key={customer.id} value={customer.id}>
+                        {customer.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-doctor_name">Doctor's Name*</Label>
+                <Input id="edit-doctor_name" name="doctor_name" value={formData.doctor_name} onChange={handleInputChange} />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Prescription Date*</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {date ? format(date, "PPP") : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <CalendarComponent
+                      mode="single"
+                      selected={date}
+                      onSelect={handleDateSelect}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-status">Status</Label>
+                <Select 
+                  name="status" 
+                  value={formData.status} 
+                  onValueChange={(value) => handleSelectChange('status', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statusOptions.map(status => (
+                      <SelectItem key={status} value={status}>
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="edit-notes">Notes</Label>
+              <Textarea id="edit-notes" name="notes" value={formData.notes} onChange={handleInputChange} />
+            </div>
+            
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium">Medicines</h3>
+                <Button type="button" variant="outline" size="sm" onClick={addPrescriptionItem}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add Medicine
+                </Button>
+              </div>
+              
+              {prescriptionItems.length === 0 ? (
+                <div className="flex h-20 items-center justify-center rounded border border-dashed">
+                  <p className="text-sm text-muted-foreground">No medicines added yet</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {prescriptionItems.map((item, index) => (
+                    <Card key={index}>
+                      <CardContent className="p-4">
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>Medicine*</Label>
+                            <Select 
+                              value={item.medicine_id}
+                              onValueChange={(value) => updatePrescriptionItem(index, 'medicine_id', value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select medicine" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {medicines.map(medicine => (
+                                  <SelectItem key={medicine.id} value={medicine.id}>
+                                    {medicine.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Quantity*</Label>
+                            <Input 
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => updatePrescriptionItem(index, 'quantity', parseInt(e.target.value) || 0)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Dosage</Label>
+                            <Input 
+                              placeholder="e.g., 1 tablet twice daily"
+                              value={item.dosage}
+                              onChange={(e) => updatePrescriptionItem(index, 'dosage', e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Instructions</Label>
+                            <Input 
+                              placeholder="e.g., Take after meals"
+                              value={item.instructions}
+                              onChange={(e) => updatePrescriptionItem(index, 'instructions', e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <Button 
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="mt-4 text-red-500 hover:text-red-700"
+                          onClick={() => removePrescriptionItem(index)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" /> Remove
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button onClick={handleEditPrescription}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={openDeleteDialog} onOpenChange={setOpenDeleteDialog}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p>Are you sure you want to delete this prescription?</p>
+            <p className="mt-2 text-sm text-red-500">This action cannot be undone.</p>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button variant="destructive" onClick={handleDeletePrescription}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
