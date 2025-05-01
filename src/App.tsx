@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -24,6 +25,11 @@ import DashboardPage from "./pages/DashboardPage";
 import MedicinesPage from "./pages/MedicinesPage";
 import InventoryPage from "./pages/InventoryPage";
 import PrescriptionsPage from "./pages/PrescriptionsPage";
+import SalesPage from "./pages/SalesPage";
+import CustomersPage from "./pages/CustomersPage";
+import SuppliersPage from "./pages/SuppliersPage";
+import ReportsPage from "./pages/ReportsPage";
+import InvoicesPage from "./pages/InvoicesPage";
 import NotFound from "./pages/NotFound";
 import PlaceholderPage from "./pages/PlaceholderPage";
 
@@ -183,58 +189,44 @@ const App: React.FC = () => {
                 />
                 
                 {/* Sales route */}
-                <Route path="/sales" element={
-                  <PlaceholderPage 
-                    title="Sales" 
-                    description="Track and manage sales transactions" 
-                    icon={<ShoppingCart size={24} />} 
-                  />
-                } />
+                <Route path="/sales" element={<SalesPage />} />
                 
                 {/* Customers route */}
-                <Route path="/customers" element={
-                  <PlaceholderPage 
-                    title="Customers" 
-                    description="Manage your customer database" 
-                    icon={<Users size={24} />} 
-                  />
-                } />
+                <Route path="/customers" element={<CustomersPage />} />
                 
                 {/* Suppliers route */}
-                <Route path="/suppliers" element={
-                  <PlaceholderPage 
-                    title="Suppliers" 
-                    description="Manage your supply chain" 
-                    icon={<Database size={24} />} 
-                  />
-                } />
+                <Route path="/suppliers" element={<SuppliersPage />} />
                 
                 {/* Reports route */}
-                <Route path="/reports" element={
-                  <PlaceholderPage 
-                    title="Reports" 
-                    description="Generate and view business reports" 
-                    icon={<BarChart size={24} />} 
-                  />
-                } />
+                <Route 
+                  path="/reports" 
+                  element={
+                    isAuthorized(['admin', 'pharmacist']) ? (
+                      <ReportsPage />
+                    ) : (
+                      <Navigate to="/" replace />
+                    )
+                  } 
+                />
                 
                 {/* Invoices route */}
-                <Route path="/invoices" element={
-                  <PlaceholderPage 
-                    title="Invoices" 
-                    description="Manage sales and purchase invoices" 
-                    icon={<FileText size={24} />} 
-                  />
-                } />
+                <Route path="/invoices" element={<InvoicesPage />} />
                 
                 {/* Settings route */}
-                <Route path="/settings" element={
-                  <PlaceholderPage 
-                    title="Settings" 
-                    description="Configure system settings" 
-                    icon={<Settings size={24} />} 
-                  />
-                } />
+                <Route 
+                  path="/settings" 
+                  element={
+                    isAuthorized(['admin']) ? (
+                      <PlaceholderPage 
+                        title="Settings" 
+                        description="Configure system settings" 
+                        icon={<Settings size={24} />} 
+                      />
+                    ) : (
+                      <Navigate to="/" replace />
+                    )
+                  }
+                />
                 
                 <Route path="*" element={<NotFound />} />
               </Routes>
