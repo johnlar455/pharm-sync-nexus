@@ -131,10 +131,10 @@ const App: React.FC = () => {
           {user ? (
             <AppLayout user={user} onLogout={handleLogout}>
               <Routes>
-                <Route 
-                  path="/" 
-                  element={<Navigate to="/dashboard" replace />} 
-                />
+                {/* Redirect root to dashboard */}
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                
+                {/* Dashboard route */}
                 <Route 
                   path="/dashboard" 
                   element={
@@ -145,6 +145,8 @@ const App: React.FC = () => {
                     )
                   } 
                 />
+                
+                {/* Medicines route */}
                 <Route 
                   path="/medicines" 
                   element={
@@ -155,6 +157,8 @@ const App: React.FC = () => {
                     )
                   } 
                 />
+                
+                {/* Inventory route */}
                 <Route 
                   path="/inventory" 
                   element={
@@ -165,6 +169,8 @@ const App: React.FC = () => {
                     )
                   }
                 />
+                
+                {/* Prescriptions route */}
                 <Route 
                   path="/prescriptions" 
                   element={
@@ -175,6 +181,8 @@ const App: React.FC = () => {
                     )
                   }
                 />
+                
+                {/* Sales route */}
                 <Route path="/sales" element={
                   <PlaceholderPage 
                     title="Sales" 
@@ -182,6 +190,8 @@ const App: React.FC = () => {
                     icon={<ShoppingCart size={24} />} 
                   />
                 } />
+                
+                {/* Customers route */}
                 <Route path="/customers" element={
                   <PlaceholderPage 
                     title="Customers" 
@@ -189,6 +199,8 @@ const App: React.FC = () => {
                     icon={<Users size={24} />} 
                   />
                 } />
+                
+                {/* Suppliers route */}
                 <Route path="/suppliers" element={
                   <PlaceholderPage 
                     title="Suppliers" 
@@ -196,6 +208,8 @@ const App: React.FC = () => {
                     icon={<Database size={24} />} 
                   />
                 } />
+                
+                {/* Reports route */}
                 <Route path="/reports" element={
                   <PlaceholderPage 
                     title="Reports" 
@@ -203,6 +217,8 @@ const App: React.FC = () => {
                     icon={<BarChart size={24} />} 
                   />
                 } />
+                
+                {/* Invoices route */}
                 <Route path="/invoices" element={
                   <PlaceholderPage 
                     title="Invoices" 
@@ -210,6 +226,8 @@ const App: React.FC = () => {
                     icon={<FileText size={24} />} 
                   />
                 } />
+                
+                {/* Settings route */}
                 <Route path="/settings" element={
                   <PlaceholderPage 
                     title="Settings" 
@@ -217,6 +235,7 @@ const App: React.FC = () => {
                     icon={<Settings size={24} />} 
                   />
                 } />
+                
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </AppLayout>
