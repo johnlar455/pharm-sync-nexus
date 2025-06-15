@@ -1,654 +1,179 @@
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from "sonner";
-import { Search, Plus, Edit, Trash2, ChevronUp, ChevronDown, FilterX, Calendar } from 'lucide-react';
-import { Textarea } from "@/components/ui/textarea";
-import { format, isValid, parseISO } from 'date-fns';
-import { DialogClose } from '@radix-ui/react-dialog';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { useNavigate } from 'react-router-dom';
+import { useToast } from '@/hooks/use-toast';
+import { Plus, Search, Package, AlertTriangle } from 'lucide-react';
 
-interface Medicine {
+type Medicine = {
   id: string;
   name: string;
-  description: string | null;
+  generic_name: string;
+  manufacturer: string;
+  category: string;
+  description: string;
   unit_price: number;
   stock_quantity: number;
   reorder_level: number;
-  expiry_date: string | null;
-  category: string | null;
-  manufacturer: string | null;
-  generic_name: string | null;
+  expiry_date: string;
   created_at: string;
   updated_at: string;
-}
-
-const categories = [
-  'Analgesics', 
-  'Antibiotics', 
-  'Antihistamines', 
-  'Cardiovascular', 
-  'Dermatological',
-  'Gastrointestinal',
-  'Hormonal',
-  'Respiratory',
-  'Supplements',
-  'Other'
-];
+};
 
 export default function MedicinesPage() {
-  const navigate = useNavigate();
-  const [medicines, setMedicines] = useState<Medicine[]>([]);
-  const [filteredMedicines, setFilteredMedicines] = useState<Medicine[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [openAddDialog, setOpenAddDialog] = useState(false);
-  const [openEditDialog, setOpenEditDialog] = useState(false);
-  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
-  const [selectedMedicine, setSelectedMedicine] = useState<Medicine | null>(null);
-  const [sortColumn, setSortColumn] = useState<keyof Medicine>('name');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [filterCategory, setFilterCategory] = useState<string>('');
-  const [date, setDate] = useState<Date | undefined>(undefined);
+  const [searchTerm, setSearchTerm] = useState('');
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  // Form states
-  const [formData, setFormData] = useState({
-    name: '',
-    unit_price: '',
-    category: '',
-    description: '',
-    expiry_date: '',
-    manufacturer: '',
-    stock_quantity: '',
-    reorder_level: '10',
-    generic_name: ''
+  const { data: medicines = [], isLoading, error } = useQuery({
+    queryKey: ['medicines', searchTerm],
+    queryFn: async () => {
+      let query = supabase
+        .from('medicines')
+        .select('*')
+        .order('name');
+
+      if (searchTerm) {
+        query = query.or(`name.ilike.%${searchTerm}%,generic_name.ilike.%${searchTerm}%,manufacturer.ilike.%${searchTerm}%`);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as Medicine[];
+    },
   });
 
-  useEffect(() => {
-    fetchMedicines();
-
-    // Subscribe to changes
-    const channel = supabase
-      .channel('medicines-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'medicines' }, fetchMedicines)
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  useEffect(() => {
-    let result = medicines;
-
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(medicine => 
-        medicine.name.toLowerCase().includes(query) || 
-        medicine.description?.toLowerCase().includes(query) || 
-        medicine.manufacturer?.toLowerCase().includes(query) || 
-        medicine.category?.toLowerCase().includes(query)
-      );
+  const getStockStatus = (medicine: Medicine) => {
+    if (medicine.stock_quantity <= 0) {
+      return { status: 'Out of Stock', variant: 'destructive' as const };
+    } else if (medicine.stock_quantity <= medicine.reorder_level) {
+      return { status: 'Low Stock', variant: 'default' as const };
     }
-
-    // Apply category filter
-    if (filterCategory) {
-      result = result.filter(medicine => medicine.category === filterCategory);
-    }
-
-    // Apply sort
-    result = [...result].sort((a, b) => {
-      if (a[sortColumn] == null) return sortDirection === 'asc' ? -1 : 1;
-      if (b[sortColumn] == null) return sortDirection === 'asc' ? 1 : -1;
-      
-      if (typeof a[sortColumn] === 'string' && typeof b[sortColumn] === 'string') {
-        return sortDirection === 'asc' 
-          ? (a[sortColumn] as string).localeCompare(b[sortColumn] as string)
-          : (b[sortColumn] as string).localeCompare(a[sortColumn] as string);
-      }
-      
-      return sortDirection === 'asc' 
-        ? (a[sortColumn] as number) - (b[sortColumn] as number)
-        : (b[sortColumn] as number) - (a[sortColumn] as number);
-    });
-
-    setFilteredMedicines(result);
-  }, [medicines, searchQuery, sortColumn, sortDirection, filterCategory]);
-
-  const fetchMedicines = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('medicines')
-        .select('*');
-
-      if (error) throw error;
-      
-      setMedicines(data || []);
-    } catch (error: any) {
-      toast.error('Failed to fetch medicines', { 
-        description: error.message
-      });
-    } finally {
-      setLoading(false);
-    }
+    return { status: 'In Stock', variant: 'secondary' as const };
   };
 
-  const handleSort = (column: keyof Medicine) => {
-    if (sortColumn === column) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortColumn(column);
-      setSortDirection('asc');
-    }
+  const isExpiringSoon = (expiryDate: string) => {
+    const expiry = new Date(expiryDate);
+    const oneMonthFromNow = new Date();
+    oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1);
+    return expiry <= oneMonthFromNow;
   };
 
-  const resetFilters = () => {
-    setSearchQuery('');
-    setFilterCategory('');
-  };
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pharmacy-600"></div>
+      </div>
+    );
+  }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSelectChange = (name: string, value: string) => {
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleDateSelect = (date: Date | undefined) => {
-    setDate(date);
-    if (date) {
-      setFormData(prev => ({ ...prev, expiry_date: format(date, 'yyyy-MM-dd') }));
-    } else {
-      setFormData(prev => ({ ...prev, expiry_date: '' }));
-    }
-  };
-
-  const validateForm = () => {
-    if (!formData.name || !formData.name.trim()) {
-      toast.error('Name is required');
-      return false;
-    }
-
-    if (!formData.unit_price || isNaN(Number(formData.unit_price)) || Number(formData.unit_price) <= 0) {
-      toast.error('Unit price must be a positive number');
-      return false;
-    }
-
-    return true;
-  };
-
-  const handleAddMedicine = async () => {
-    if (!validateForm()) return;
-
-    try {
-      // Fix: Ensure name and unit_price are provided and not optional
-      const newMedicine = {
-        name: formData.name, // Required field
-        unit_price: Number(formData.unit_price), // Required field
-        category: formData.category || null,
-        description: formData.description || null,
-        expiry_date: formData.expiry_date || null,
-        manufacturer: formData.manufacturer || null,
-        stock_quantity: formData.stock_quantity ? Number(formData.stock_quantity) : 0,
-        reorder_level: formData.reorder_level ? Number(formData.reorder_level) : 10,
-        generic_name: formData.generic_name || null
-      };
-
-      const { error } = await supabase
-        .from('medicines')
-        .insert(newMedicine);
-
-      if (error) throw error;
-      
-      toast.success('Medicine added successfully');
-      setOpenAddDialog(false);
-      resetForm();
-    } catch (error: any) {
-      toast.error('Failed to add medicine', { 
-        description: error.message 
-      });
-    }
-  };
-
-  const handleEditMedicine = async () => {
-    if (!validateForm() || !selectedMedicine) return;
-
-    try {
-      // Fix: Ensure name and unit_price are provided and not optional
-      const updatedMedicine = {
-        name: formData.name, // Required field
-        unit_price: Number(formData.unit_price), // Required field
-        category: formData.category || null,
-        description: formData.description || null,
-        expiry_date: formData.expiry_date || null,
-        manufacturer: formData.manufacturer || null,
-        stock_quantity: formData.stock_quantity ? Number(formData.stock_quantity) : 0,
-        reorder_level: formData.reorder_level ? Number(formData.reorder_level) : 10,
-        generic_name: formData.generic_name || null
-      };
-
-      const { error } = await supabase
-        .from('medicines')
-        .update(updatedMedicine)
-        .eq('id', selectedMedicine.id);
-
-      if (error) throw error;
-      
-      toast.success('Medicine updated successfully');
-      setOpenEditDialog(false);
-    } catch (error: any) {
-      toast.error('Failed to update medicine', { 
-        description: error.message 
-      });
-    }
-  };
-
-  const handleDeleteMedicine = async () => {
-    if (!selectedMedicine) return;
-
-    try {
-      const { error } = await supabase
-        .from('medicines')
-        .delete()
-        .eq('id', selectedMedicine.id);
-
-      if (error) throw error;
-      
-      toast.success('Medicine deleted successfully');
-      setOpenDeleteDialog(false);
-    } catch (error: any) {
-      toast.error('Failed to delete medicine', { 
-        description: error.message 
-      });
-    }
-  };
-
-  const openEdit = (medicine: Medicine) => {
-    setSelectedMedicine(medicine);
-    setFormData({
-      name: medicine.name,
-      unit_price: String(medicine.unit_price),
-      category: medicine.category || '',
-      description: medicine.description || '',
-      expiry_date: medicine.expiry_date || '',
-      manufacturer: medicine.manufacturer || '',
-      stock_quantity: String(medicine.stock_quantity),
-      reorder_level: String(medicine.reorder_level),
-      generic_name: medicine.generic_name || ''
-    });
-    if (medicine.expiry_date) {
-      setDate(parseISO(medicine.expiry_date));
-    } else {
-      setDate(undefined);
-    }
-    setOpenEditDialog(true);
-  };
-
-  const openDelete = (medicine: Medicine) => {
-    setSelectedMedicine(medicine);
-    setOpenDeleteDialog(true);
-  };
-
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      unit_price: '',
-      category: '',
-      description: '',
-      expiry_date: '',
-      manufacturer: '',
-      stock_quantity: '',
-      reorder_level: '10',
-      generic_name: ''
-    });
-    setDate(undefined);
-  };
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-';
-    try {
-      const date = parseISO(dateString);
-      if (!isValid(date)) return '-';
-      return format(date, 'yyyy-MM-dd');
-    } catch {
-      return '-';
-    }
-  };
-
-  const renderSortIcon = (column: keyof Medicine) => {
-    if (sortColumn !== column) return null;
-    return sortDirection === 'asc' ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />;
-  };
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-red-600">Error loading medicines. Please try again.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-3xl font-bold">Medicines</h1>
-        <Button onClick={() => { resetForm(); setOpenAddDialog(true); }} className="mt-4 sm:mt-0">
-          <Plus className="mr-2 h-4 w-4" /> Add Medicine
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-gray-900">Medicines</h1>
+        <Button className="bg-pharmacy-600 hover:bg-pharmacy-700">
+          <Plus className="w-4 h-4 mr-2" />
+          Add Medicine
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
-            <CardTitle>All Medicines</CardTitle>
-            <div className="flex flex-col space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-                <Input
-                  className="pl-8"
-                  placeholder="Search medicines..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              <Select value={filterCategory} onValueChange={setFilterCategory}>
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="All categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">All categories</SelectItem>
-                  {categories.map(category => (
-                    <SelectItem key={category} value={category}>{category}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button variant="outline" onClick={resetFilters} className="flex-shrink-0">
-                <FilterX className="mr-2 h-4 w-4" /> Reset
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex h-48 items-center justify-center">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-pharmacy-200 border-t-pharmacy-600"></div>
-              <p className="ml-2">Loading medicines...</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              {filteredMedicines.length === 0 ? (
-                <div className="flex h-32 flex-col items-center justify-center rounded-lg border bg-gray-50 p-4 text-center dark:bg-gray-900">
-                  <p className="text-lg font-medium">No medicines found</p>
-                  <p className="text-sm text-muted-foreground">Try adjusting your search or add a new medicine</p>
+      <div className="flex items-center space-x-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <Input
+            placeholder="Search medicines..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {medicines.map((medicine) => {
+          const stockStatus = getStockStatus(medicine);
+          const expiringSoon = medicine.expiry_date && isExpiringSoon(medicine.expiry_date);
+          
+          return (
+            <Card key={medicine.id} className="hover:shadow-lg transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex justify-between items-start">
+                  <CardTitle className="text-lg font-semibold text-gray-900">
+                    {medicine.name}
+                  </CardTitle>
+                  <Badge variant={stockStatus.variant}>
+                    {stockStatus.status}
+                  </Badge>
                 </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="cursor-pointer" onClick={() => handleSort('name')}>
-                        <div className="flex items-center">
-                          Name {renderSortIcon('name')}
-                        </div>
-                      </TableHead>
-                      <TableHead className="cursor-pointer" onClick={() => handleSort('category')}>
-                        <div className="flex items-center">
-                          Category {renderSortIcon('category')}
-                        </div>
-                      </TableHead>
-                      <TableHead className="cursor-pointer" onClick={() => handleSort('stock_quantity')}>
-                        <div className="flex items-center">
-                          Stock {renderSortIcon('stock_quantity')}
-                        </div>
-                      </TableHead>
-                      <TableHead className="cursor-pointer" onClick={() => handleSort('unit_price')}>
-                        <div className="flex items-center">
-                          Price {renderSortIcon('unit_price')}
-                        </div>
-                      </TableHead>
-                      <TableHead className="cursor-pointer" onClick={() => handleSort('expiry_date')}>
-                        <div className="flex items-center">
-                          Expiry Date {renderSortIcon('expiry_date')}
-                        </div>
-                      </TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredMedicines.map((medicine) => (
-                      <TableRow key={medicine.id}>
-                        <TableCell>{medicine.name}</TableCell>
-                        <TableCell>{medicine.category || '-'}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center">
-                            {medicine.stock_quantity}
-                            {medicine.stock_quantity <= medicine.reorder_level && (
-                              <Badge variant="destructive" className="ml-2">Low</Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>${medicine.unit_price.toFixed(2)}</TableCell>
-                        <TableCell>{formatDate(medicine.expiry_date)}</TableCell>
-                        <TableCell>
-                          <div className="flex space-x-2">
-                            <Button size="sm" variant="outline" onClick={() => openEdit(medicine)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button size="sm" variant="destructive" onClick={() => openDelete(medicine)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                {medicine.generic_name && (
+                  <p className="text-sm text-gray-600">{medicine.generic_name}</p>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Price:</span>
+                  <span className="font-medium">${medicine.unit_price}</span>
+                </div>
+                
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Stock:</span>
+                  <span className={`font-medium ${medicine.stock_quantity <= medicine.reorder_level ? 'text-red-600' : 'text-green-600'}`}>
+                    {medicine.stock_quantity} units
+                  </span>
+                </div>
+                
+                {medicine.manufacturer && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Manufacturer:</span>
+                    <span className="font-medium">{medicine.manufacturer}</span>
+                  </div>
+                )}
+                
+                {medicine.category && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Category:</span>
+                    <span className="font-medium">{medicine.category}</span>
+                  </div>
+                )}
+                
+                {medicine.expiry_date && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Expiry:</span>
+                    <span className={`font-medium ${expiringSoon ? 'text-red-600' : 'text-gray-900'}`}>
+                      {new Date(medicine.expiry_date).toLocaleDateString()}
+                      {expiringSoon && (
+                        <AlertTriangle className="inline w-4 h-4 ml-1 text-red-600" />
+                      )}
+                    </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
 
-      {/* Add Medicine Dialog */}
-      <Dialog open={openAddDialog} onOpenChange={setOpenAddDialog}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Add New Medicine</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="name">Name*</Label>
-                <Input id="name" name="name" value={formData.name} onChange={handleInputChange} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="generic_name">Generic Name</Label>
-                <Input id="generic_name" name="generic_name" value={formData.generic_name} onChange={handleInputChange} />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="unit_price">Unit Price*</Label>
-                <Input id="unit_price" name="unit_price" type="number" min="0" step="0.01" value={formData.unit_price} onChange={handleInputChange} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
-                <Select name="category" value={formData.category} onValueChange={(value) => handleSelectChange('category', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map(category => (
-                      <SelectItem key={category} value={category}>{category}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="stock_quantity">Initial Stock</Label>
-                <Input id="stock_quantity" name="stock_quantity" type="number" min="0" value={formData.stock_quantity} onChange={handleInputChange} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="reorder_level">Reorder Level</Label>
-                <Input id="reorder_level" name="reorder_level" type="number" min="0" value={formData.reorder_level} onChange={handleInputChange} />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="manufacturer">Manufacturer</Label>
-                <Input id="manufacturer" name="manufacturer" value={formData.manufacturer} onChange={handleInputChange} />
-              </div>
-              <div className="space-y-2">
-                <Label>Expiry Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant={"outline"}
-                      className="w-full justify-start text-left font-normal"
-                    >
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {date ? format(date, "PPP") : <span>Pick a date</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <CalendarComponent
-                      mode="single"
-                      selected={date}
-                      onSelect={handleDateSelect}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea id="description" name="description" value={formData.description} onChange={handleInputChange} />
-            </div>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </DialogClose>
-            <Button onClick={handleAddMedicine}>Add Medicine</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Medicine Dialog - Similar structure to Add Dialog */}
-      <Dialog open={openEditDialog} onOpenChange={setOpenEditDialog}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Edit Medicine</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            {/* Same form structure as Add dialog with values from selectedMedicine */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="edit-name">Name*</Label>
-                <Input id="edit-name" name="name" value={formData.name} onChange={handleInputChange} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-generic_name">Generic Name</Label>
-                <Input id="edit-generic_name" name="generic_name" value={formData.generic_name} onChange={handleInputChange} />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="edit-unit_price">Unit Price*</Label>
-                <Input id="edit-unit_price" name="unit_price" type="number" min="0" step="0.01" value={formData.unit_price} onChange={handleInputChange} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-category">Category</Label>
-                <Select name="category" value={formData.category} onValueChange={(value) => handleSelectChange('category', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map(category => (
-                      <SelectItem key={category} value={category}>{category}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="edit-stock_quantity">Stock Quantity</Label>
-                <Input id="edit-stock_quantity" name="stock_quantity" type="number" min="0" value={formData.stock_quantity} onChange={handleInputChange} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-reorder_level">Reorder Level</Label>
-                <Input id="edit-reorder_level" name="reorder_level" type="number" min="0" value={formData.reorder_level} onChange={handleInputChange} />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="edit-manufacturer">Manufacturer</Label>
-                <Input id="edit-manufacturer" name="manufacturer" value={formData.manufacturer} onChange={handleInputChange} />
-              </div>
-              <div className="space-y-2">
-                <Label>Expiry Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant={"outline"}
-                      className="w-full justify-start text-left font-normal"
-                    >
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {date ? format(date, "PPP") : <span>Pick a date</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <CalendarComponent
-                      mode="single"
-                      selected={date}
-                      onSelect={handleDateSelect}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-description">Description</Label>
-              <Textarea id="edit-description" name="description" value={formData.description} onChange={handleInputChange} />
-            </div>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </DialogClose>
-            <Button onClick={handleEditMedicine}>Save Changes</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={openDeleteDialog} onOpenChange={setOpenDeleteDialog}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <p>Are you sure you want to delete {selectedMedicine?.name}?</p>
-            <p className="mt-2 text-sm text-red-500">This action cannot be undone.</p>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </DialogClose>
-            <Button variant="destructive" onClick={handleDeleteMedicine}>Delete</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {medicines.length === 0 && (
+        <div className="text-center py-12">
+          <Package className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900">No medicines found</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            {searchTerm ? 'Try adjusting your search terms.' : 'Get started by adding a new medicine.'}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

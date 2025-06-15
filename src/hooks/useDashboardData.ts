@@ -30,23 +30,26 @@ export const useDashboardData = () => {
   const fetchDashboardData = async () => {
     try {
       const today = new Date().toISOString().split('T')[0];
+      const oneWeekFromNow = new Date();
+      oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
+      const weekFromNow = oneWeekFromNow.toISOString().split('T')[0];
       
+      // Fix the queries to use proper column comparisons
       const [
-        { data: medicines },
+        { count: medicinesCount },
         { data: lowStock },
         { data: expiring },
         { data: sales },
         { data: activity }
       ] = await Promise.all([
-        supabase.from('medicines').select('count').single(),
-        // Fix: Use query to compare with reorder_level as a direct column comparison
-        // instead of using the non-existent 'get_reorder_level' RPC function
+        supabase.from('medicines').select('*', { count: 'exact' }).limit(0),
+        // Fixed: Compare stock_quantity with reorder_level directly
         supabase.from('medicines')
-          .select('id')
-          .lt('stock_quantity', 'reorder_level'),
+          .select('id, name, stock_quantity, reorder_level')
+          .lt('stock_quantity', supabase.raw('reorder_level')),
         supabase.from('medicines')
-          .select('id')
-          .lt('expiry_date', `${today}`),
+          .select('id, name, expiry_date')
+          .lte('expiry_date', weekFromNow),
         supabase.from('sales')
           .select('total_amount')
           .gte('created_at', `${today}T00:00:00`)
@@ -56,25 +59,26 @@ export const useDashboardData = () => {
             id,
             total_amount,
             created_at,
-            customer:customers(full_name)
+            customers(full_name)
           `)
           .order('created_at', { ascending: false })
           .limit(5)
       ]);
 
       setStats({
-        totalMedicines: medicines?.count || 0,
+        totalMedicines: medicinesCount || 0,
         lowStockCount: lowStock?.length || 0,
         expiringCount: expiring?.length || 0,
         todaySales: sales?.reduce((sum, sale) => sum + (sale.total_amount || 0), 0) || 0,
         recentActivity: activity?.map(sale => ({
           id: sale.id,
-          type: 'sale',
-          description: `Sale to ${sale.customer?.full_name || 'Customer'} - $${sale.total_amount}`,
+          type: 'sale' as const,
+          description: `Sale to ${sale.customers?.full_name || 'Customer'} - $${sale.total_amount}`,
           timestamp: sale.created_at,
         })) || [],
       });
     } catch (error) {
+      console.error('Dashboard data fetch error:', error);
       toast({
         title: "Error fetching dashboard data",
         description: "Please try again later",
@@ -108,5 +112,5 @@ export const useDashboardData = () => {
     };
   }, []);
 
-  return { stats, isLoading };
+  return { stats, isLoading, refetch: fetchDashboardData };
 };

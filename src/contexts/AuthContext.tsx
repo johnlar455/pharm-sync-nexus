@@ -28,26 +28,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
+    // Set up auth state listener first
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state change:', event, session?.user?.id);
+        
         if (session?.user) {
-          // Get user profile data with proper type casting
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('full_name, role')
-            .eq('id', session.user.id)
-            .single();
-          
-          // Ensure the role is properly typed as UserRole
-          const role = profile?.role as UserRole || 'cashier';
-          
-          setUser({
-            id: session.user.id,
-            name: profile?.full_name || session.user.email?.split('@')[0] || '',
-            email: session.user.email || '',
-            role: role,
-            avatarUrl: session.user.user_metadata.avatar_url,
-          });
+          // Defer profile fetching to avoid potential deadlocks
+          setTimeout(async () => {
+            try {
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('full_name, role')
+                .eq('id', session.user.id)
+                .single();
+              
+              const role = profile?.role as UserRole || 'cashier';
+              
+              setUser({
+                id: session.user.id,
+                name: profile?.full_name || session.user.email?.split('@')[0] || '',
+                email: session.user.email || '',
+                role: role,
+                avatarUrl: session.user.user_metadata.avatar_url,
+              });
+            } catch (error) {
+              console.error('Error fetching profile:', error);
+              // Set user with basic info even if profile fetch fails
+              setUser({
+                id: session.user.id,
+                name: session.user.email?.split('@')[0] || '',
+                email: session.user.email || '',
+                role: 'cashier',
+              });
+            }
+          }, 0);
         } else {
           setUser(null);
         }
@@ -58,13 +73,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Check current auth status
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        supabase
-          .from('profiles')
-          .select('full_name, role')
-          .eq('id', session.user.id)
-          .single()
-          .then(({ data: profile }) => {
-            // Ensure the role is properly typed as UserRole
+        // Use the same deferred approach for initial session
+        setTimeout(async () => {
+          try {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('full_name, role')
+              .eq('id', session.user.id)
+              .single();
+            
             const role = profile?.role as UserRole || 'cashier';
             
             setUser({
@@ -74,8 +91,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               role: role,
               avatarUrl: session.user.user_metadata.avatar_url,
             });
-            setIsLoading(false);
-          });
+          } catch (error) {
+            console.error('Error fetching profile:', error);
+            setUser({
+              id: session.user.id,
+              name: session.user.email?.split('@')[0] || '',
+              email: session.user.email || '',
+              role: 'cashier',
+            });
+          }
+          setIsLoading(false);
+        }, 0);
       } else {
         setIsLoading(false);
       }
@@ -87,8 +113,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
   
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   const isAuthorized = (allowedRoles: string[]) => {
