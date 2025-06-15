@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 // Pages
+import LandingPage from '@/pages/LandingPage';
 import LoginPage from '@/pages/LoginPage';
 import DashboardPage from '@/pages/DashboardPage';
 import MedicinesPage from '@/pages/MedicinesPage';
@@ -23,78 +24,103 @@ import { Settings } from 'lucide-react';
 export const AppRoutes: React.FC = () => {
   const { user, handleLogout } = useAuth();
 
-  return user ? (
-    <AppLayout user={user} onLogout={handleLogout}>
-      <Routes>
-        {/* Redirect root to dashboard */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        
-        {/* Dashboard route */}
-        <Route 
-          path="/dashboard" 
-          element={
-            <ProtectedRoute allowedRoles={['admin', 'pharmacist']} redirectTo="/sales">
-              <DashboardPage />
-            </ProtectedRoute>
-          } 
-        />
-        
-        {/* Medicines route */}
-        <Route 
-          path="/medicines" 
-          element={
-            <ProtectedRoute allowedRoles={['admin', 'pharmacist']}>
-              <MedicinesPage />
-            </ProtectedRoute>
-          } 
-        />
-        
-        {/* Inventory route */}
-        <Route 
-          path="/inventory" 
-          element={
-            <ProtectedRoute allowedRoles={['admin', 'pharmacist']}>
-              <InventoryPage />
-            </ProtectedRoute>
-          }
-        />
-        
-        {/* Prescriptions route */}
-        <Route 
-          path="/prescriptions" 
-          element={
-            <ProtectedRoute allowedRoles={['admin', 'pharmacist']}>
-              <PrescriptionsPage />
-            </ProtectedRoute>
-          }
-        />
-        
-        {/* Sales route */}
-        <Route path="/sales" element={<SalesPage />} />
-        
-        {/* Customers route */}
-        <Route path="/customers" element={<CustomersPage />} />
-        
-        {/* Suppliers route */}
-        <Route path="/suppliers" element={<SuppliersPage />} />
-        
-        {/* Reports route */}
-        <Route 
-          path="/reports" 
-          element={
-            <ProtectedRoute allowedRoles={['admin', 'pharmacist']}>
-              <ReportsPage />
-            </ProtectedRoute>
-          } 
-        />
-        
-        {/* Invoices route */}
-        <Route path="/invoices" element={<InvoicesPage />} />
-        
-        {/* Settings route */}
-        <Route 
-          path="/settings" 
-          element={
+  return (
+    <Routes>
+      {/* Public routes */}
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      
+      {/* Protected routes with layout */}
+      <Route path="/dashboard" element={
+        user ? (
+          <AppLayout user={user} onLogout={handleLogout}>
+            <DashboardPage />
+          </AppLayout>
+        ) : (
+          <AppLayout 
+            user={{ name: 'Guest', email: 'guest@example.com', role: 'cashier' }} 
+            onLogout={() => {}}
+          >
+            <DashboardPage />
+          </AppLayout>
+        )
+      } />
+      
+      <Route path="/medicines" element={
+        <AppLayout 
+          user={user || { name: 'Guest', email: 'guest@example.com', role: 'cashier' }} 
+          onLogout={user ? handleLogout : () => {}}
+        >
+          <MedicinesPage />
+        </AppLayout>
+      } />
+      
+      <Route path="/inventory" element={
+        <AppLayout 
+          user={user || { name: 'Guest', email: 'guest@example.com', role: 'cashier' }} 
+          onLogout={user ? handleLogout : () => {}}
+        >
+          <InventoryPage />
+        </AppLayout>
+      } />
+      
+      <Route path="/prescriptions" element={
+        <AppLayout 
+          user={user || { name: 'Guest', email: 'guest@example.com', role: 'cashier' }} 
+          onLogout={user ? handleLogout : () => {}}
+        >
+          <PrescriptionsPage />
+        </AppLayout>
+      } />
+      
+      <Route path="/sales" element={
+        <AppLayout 
+          user={user || { name: 'Guest', email: 'guest@example.com', role: 'cashier' }} 
+          onLogout={user ? handleLogout : () => {}}
+        >
+          <SalesPage />
+        </AppLayout>
+      } />
+      
+      <Route path="/customers" element={
+        <AppLayout 
+          user={user || { name: 'Guest', email: 'guest@example.com', role: 'cashier' }} 
+          onLogout={user ? handleLogout : () => {}}
+        >
+          <CustomersPage />
+        </AppLayout>
+      } />
+      
+      <Route path="/suppliers" element={
+        <AppLayout 
+          user={user || { name: 'Guest', email: 'guest@example.com', role: 'cashier' }} 
+          onLogout={user ? handleLogout : () => {}}
+        >
+          <SuppliersPage />
+        </AppLayout>
+      } />
+      
+      <Route path="/reports" element={
+        <AppLayout 
+          user={user || { name: 'Guest', email: 'guest@example.com', role: 'cashier' }} 
+          onLogout={user ? handleLogout : () => {}}
+        >
+          <ReportsPage />
+        </AppLayout>
+      } />
+      
+      <Route path="/invoices" element={
+        <AppLayout 
+          user={user || { name: 'Guest', email: 'guest@example.com', role: 'cashier' }} 
+          onLogout={user ? handleLogout : () => {}}
+        >
+          <InvoicesPage />
+        </AppLayout>
+      } />
+      
+      <Route path="/settings" element={
+        user ? (
+          <AppLayout user={user} onLogout={handleLogout}>
             <ProtectedRoute allowedRoles={['admin']}>
               <PlaceholderPage 
                 title="Settings" 
@@ -102,16 +128,13 @@ export const AppRoutes: React.FC = () => {
                 icon={<Settings size={24} />} 
               />
             </ProtectedRoute>
-          }
-        />
-        
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </AppLayout>
-  ) : (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="*" element={<Navigate to="/login" replace />} />
+          </AppLayout>
+        ) : (
+          <Navigate to="/login" replace />
+        )
+      } />
+      
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 };

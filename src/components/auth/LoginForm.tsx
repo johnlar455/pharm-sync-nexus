@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -17,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RoleSelect } from './RoleSelect';
+import { useNavigate } from 'react-router-dom';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -46,6 +48,7 @@ export function LoginForm({ onLogin, isLoading = false }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [isSignupLoading, setIsSignupLoading] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -77,7 +80,8 @@ export function LoginForm({ onLogin, isLoading = false }: LoginFormProps) {
           data: {
             full_name: data.fullName,
             role: data.role,
-          }
+          },
+          emailRedirectTo: `${window.location.origin}/dashboard`
         }
       });
 
@@ -85,8 +89,11 @@ export function LoginForm({ onLogin, isLoading = false }: LoginFormProps) {
 
       toast({
         title: 'Sign Up Successful',
-        description: 'Your account has been created. Please check your email for verification.',
+        description: 'Welcome! You can now access the dashboard.',
       });
+
+      // Redirect to dashboard immediately
+      navigate('/dashboard');
 
     } catch (error: any) {
       console.error('Signup error:', error);
@@ -281,6 +288,16 @@ export function LoginForm({ onLogin, isLoading = false }: LoginFormProps) {
           </Form>
         </TabsContent>
       </Tabs>
+
+      <div className="text-center">
+        <Button 
+          variant="link" 
+          onClick={() => navigate('/dashboard')}
+          className="text-sm text-pharmacy-600"
+        >
+          Continue as Guest
+        </Button>
+      </div>
     </div>
   );
 }
