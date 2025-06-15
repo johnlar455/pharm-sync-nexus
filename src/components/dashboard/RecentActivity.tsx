@@ -4,12 +4,9 @@ import { Badge } from '@/components/ui/badge';
 
 type ActivityItem = {
   id: string;
-  type: 'sale' | 'inventory' | 'prescription' | 'user';
-  title: string;
+  type: 'sale' | 'inventory' | 'medicine' | 'prescription' | 'user';
   description: string;
-  time: string;
-  statusColor?: 'default' | 'success' | 'warning' | 'danger';
-  status?: string;
+  timestamp: string;
 };
 
 type RecentActivityProps = {
@@ -18,20 +15,6 @@ type RecentActivityProps = {
 };
 
 export function RecentActivity({ activities, className }: RecentActivityProps) {
-  // Helper to get status badge variant
-  const getStatusVariant = (statusColor?: ActivityItem['statusColor']) => {
-    switch (statusColor) {
-      case 'success':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
-      case 'warning':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
-      case 'danger':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
-    }
-  };
-
   // Helper to get activity icon
   const getActivityIcon = (type: ActivityItem['type']) => {
     switch (type) {
@@ -41,6 +24,8 @@ export function RecentActivity({ activities, className }: RecentActivityProps) {
         return '📦';
       case 'prescription':
         return '📋';
+      case 'medicine':
+        return '💊';
       case 'user':
         return '👤';
       default:
@@ -48,13 +33,21 @@ export function RecentActivity({ activities, className }: RecentActivityProps) {
     }
   };
 
+  // Helper to format time
+  const formatTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
-    <div className={`rounded-lg border bg-card p-4 shadow ${className}`}>
-      <h2 className="mb-4 font-semibold">Recent Activity</h2>
-      
-      <ScrollArea className="h-[300px] pr-4">
-        <div className="space-y-4">
-          {activities.map((activity) => (
+    <ScrollArea className="h-[300px] pr-4">
+      <div className="space-y-4">
+        {activities.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <p>No recent activity</p>
+          </div>
+        ) : (
+          activities.map((activity) => (
             <div
               key={activity.id}
               className="flex gap-3 rounded-md border p-3 transition-colors hover:bg-muted/50"
@@ -67,25 +60,14 @@ export function RecentActivity({ activities, className }: RecentActivityProps) {
               
               <div className="flex-1 space-y-1">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">{activity.title}</p>
-                  <span className="text-xs text-muted-foreground">{activity.time}</span>
+                  <p className="text-sm font-medium">{activity.description}</p>
+                  <span className="text-xs text-muted-foreground">{formatTime(activity.timestamp)}</span>
                 </div>
-                
-                <p className="text-xs text-muted-foreground">{activity.description}</p>
-                
-                {activity.status && (
-                  <Badge 
-                    variant="outline" 
-                    className={`mt-1 ${getStatusVariant(activity.statusColor)}`}
-                  >
-                    {activity.status}
-                  </Badge>
-                )}
               </div>
             </div>
-          ))}
-        </div>
-      </ScrollArea>
-    </div>
+          ))
+        )}
+      </div>
+    </ScrollArea>
   );
 }
