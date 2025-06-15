@@ -72,7 +72,7 @@ export function Sidebar({ className }: SidebarProps) {
         )}
       >
         <div className="flex h-16 items-center justify-between border-b px-4">
-          <Link to="/" className="flex items-center gap-2 font-bold text-pharmacy-600 dark:text-pharmacy-400">
+          <Link to="/dashboard" className="flex items-center gap-2 font-bold text-pharmacy-600 dark:text-pharmacy-400">
             <Package size={24} />
             <span>PharmSync</span>
           </Link>
@@ -86,7 +86,7 @@ export function Sidebar({ className }: SidebarProps) {
         
         <nav className="space-y-6 p-4">
           <div className="space-y-1">
-            <SidebarItem to="/" icon={Home} label="Dashboard" currentPath={location.pathname} />
+            <SidebarItem to="/dashboard" icon={Home} label="Dashboard" currentPath={location.pathname} />
             <SidebarItem to="/medicines" icon={Book} label="Medicines" currentPath={location.pathname} />
             <SidebarItem to="/inventory" icon={Package} label="Inventory" currentPath={location.pathname} />
             <SidebarItem to="/prescriptions" icon={Clipboard} label="Prescriptions" currentPath={location.pathname} />
@@ -100,7 +100,6 @@ export function Sidebar({ className }: SidebarProps) {
               <SidebarItem to="/suppliers" icon={Database} label="Suppliers" currentPath={location.pathname} />
               <SidebarItem to="/reports" icon={BarChart} label="Reports" currentPath={location.pathname} />
               <SidebarItem to="/invoices" icon={FileText} label="Invoices" currentPath={location.pathname} />
-              <SidebarItem to="/settings" icon={Settings} label="Settings" currentPath={location.pathname} />
             </div>
           </div>
         </nav>

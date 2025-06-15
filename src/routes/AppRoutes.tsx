@@ -1,9 +1,8 @@
 
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/contexts/AuthContext';
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 // Pages
 import LandingPage from '@/pages/LandingPage';
@@ -18,8 +17,13 @@ import SuppliersPage from '@/pages/SuppliersPage';
 import ReportsPage from '@/pages/ReportsPage';
 import InvoicesPage from '@/pages/InvoicesPage';
 import NotFound from '@/pages/NotFound';
-import PlaceholderPage from '@/pages/PlaceholderPage';
-import { Settings } from 'lucide-react';
+
+const GuestUser = {
+  id: 'guest',
+  name: 'Guest User',
+  email: 'guest@example.com',
+  role: 'cashier' as const
+};
 
 export const AppRoutes: React.FC = () => {
   const { user, handleLogout } = useAuth();
@@ -30,25 +34,19 @@ export const AppRoutes: React.FC = () => {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       
-      {/* Protected routes with layout */}
+      {/* Dashboard and app routes - accessible with or without auth */}
       <Route path="/dashboard" element={
-        user ? (
-          <AppLayout user={user} onLogout={handleLogout}>
-            <DashboardPage />
-          </AppLayout>
-        ) : (
-          <AppLayout 
-            user={{ name: 'Guest', email: 'guest@example.com', role: 'cashier' }} 
-            onLogout={() => {}}
-          >
-            <DashboardPage />
-          </AppLayout>
-        )
+        <AppLayout 
+          user={user || GuestUser} 
+          onLogout={user ? handleLogout : () => {}}
+        >
+          <DashboardPage />
+        </AppLayout>
       } />
       
       <Route path="/medicines" element={
         <AppLayout 
-          user={user || { name: 'Guest', email: 'guest@example.com', role: 'cashier' }} 
+          user={user || GuestUser} 
           onLogout={user ? handleLogout : () => {}}
         >
           <MedicinesPage />
@@ -57,7 +55,7 @@ export const AppRoutes: React.FC = () => {
       
       <Route path="/inventory" element={
         <AppLayout 
-          user={user || { name: 'Guest', email: 'guest@example.com', role: 'cashier' }} 
+          user={user || GuestUser} 
           onLogout={user ? handleLogout : () => {}}
         >
           <InventoryPage />
@@ -66,7 +64,7 @@ export const AppRoutes: React.FC = () => {
       
       <Route path="/prescriptions" element={
         <AppLayout 
-          user={user || { name: 'Guest', email: 'guest@example.com', role: 'cashier' }} 
+          user={user || GuestUser} 
           onLogout={user ? handleLogout : () => {}}
         >
           <PrescriptionsPage />
@@ -75,7 +73,7 @@ export const AppRoutes: React.FC = () => {
       
       <Route path="/sales" element={
         <AppLayout 
-          user={user || { name: 'Guest', email: 'guest@example.com', role: 'cashier' }} 
+          user={user || GuestUser} 
           onLogout={user ? handleLogout : () => {}}
         >
           <SalesPage />
@@ -84,7 +82,7 @@ export const AppRoutes: React.FC = () => {
       
       <Route path="/customers" element={
         <AppLayout 
-          user={user || { name: 'Guest', email: 'guest@example.com', role: 'cashier' }} 
+          user={user || GuestUser} 
           onLogout={user ? handleLogout : () => {}}
         >
           <CustomersPage />
@@ -93,7 +91,7 @@ export const AppRoutes: React.FC = () => {
       
       <Route path="/suppliers" element={
         <AppLayout 
-          user={user || { name: 'Guest', email: 'guest@example.com', role: 'cashier' }} 
+          user={user || GuestUser} 
           onLogout={user ? handleLogout : () => {}}
         >
           <SuppliersPage />
@@ -102,7 +100,7 @@ export const AppRoutes: React.FC = () => {
       
       <Route path="/reports" element={
         <AppLayout 
-          user={user || { name: 'Guest', email: 'guest@example.com', role: 'cashier' }} 
+          user={user || GuestUser} 
           onLogout={user ? handleLogout : () => {}}
         >
           <ReportsPage />
@@ -111,27 +109,11 @@ export const AppRoutes: React.FC = () => {
       
       <Route path="/invoices" element={
         <AppLayout 
-          user={user || { name: 'Guest', email: 'guest@example.com', role: 'cashier' }} 
+          user={user || GuestUser} 
           onLogout={user ? handleLogout : () => {}}
         >
           <InvoicesPage />
         </AppLayout>
-      } />
-      
-      <Route path="/settings" element={
-        user ? (
-          <AppLayout user={user} onLogout={handleLogout}>
-            <ProtectedRoute allowedRoles={['admin']}>
-              <PlaceholderPage 
-                title="Settings" 
-                description="Configure system settings" 
-                icon={<Settings size={24} />} 
-              />
-            </ProtectedRoute>
-          </AppLayout>
-        ) : (
-          <Navigate to="/login" replace />
-        )
       } />
       
       <Route path="*" element={<NotFound />} />

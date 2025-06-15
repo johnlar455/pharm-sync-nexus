@@ -26,22 +26,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
+    let mounted = true;
+
     // Check current session first
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        fetchUserProfile(session.user);
-      } else {
-        setIsLoading(false);
+    const getInitialSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Error getting session:', error);
+          if (mounted) {
+            setIsLoading(false);
+          }
+          return;
+        }
+
+        if (session?.user && mounted) {
+          await fetchUserProfile(session.user);
+        } else if (mounted) {
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error('Error in getInitialSession:', error);
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
-    });
+    };
+
+    getInitialSession();
 
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state change:', event, session?.user?.id);
         
+        if (!mounted) return;
+
         if (session?.user) {
-          fetchUserProfile(session.user);
+          await fetchUserProfile(session.user);
         } else {
           setUser(null);
           setIsLoading(false);
@@ -50,33 +72,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, []);
 
   const fetchUserProfile = async (authUser: any) => {
     try {
-      const { data: profile } = await supabase
+      const { data: profile, error } = await supabase
         .from('profiles')
         .select('full_name, role')
         .eq('id', authUser.id)
         .single();
       
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching profile:', error);
+      }
+      
       const role = profile?.role as UserRole || 'cashier';
       
       setUser({
         id: authUser.id,
-        name: profile?.full_name || authUser.email?.split('@')[0] || '',
+        name: profile?.full_name || authUser.email?.split('@')[0] || 'User',
         email: authUser.email || '',
         role: role,
-        avatarUrl: authUser.user_metadata.avatar_url,
+        avatarUrl: authUser.user_metadata?.avatar_url,
       });
     } catch (error) {
       console.error('Error fetching profile:', error);
       // Set user with basic info even if profile fetch fails
       setUser({
         id: authUser.id,
-        name: authUser.email?.split('@')[0] || '',
+        name: authUser.email?.split('@')[0] || 'User',
         email: authUser.email || '',
         role: 'cashier',
       });
@@ -87,10 +114,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   
   const handleLogout = async () => {
     try {
+      setIsLoading(true);
       await supabase.auth.signOut();
       setUser(null);
     } catch (error) {
       console.error('Logout error:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 

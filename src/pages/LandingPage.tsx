@@ -10,6 +10,10 @@ export default function LandingPage() {
     navigate('/dashboard');
   };
 
+  const handleLogin = () => {
+    navigate('/login');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-pharmacy-50 to-white">
       <div className="container mx-auto px-4 py-16">
@@ -27,13 +31,23 @@ export default function LandingPage() {
             Complete Pharmacy Management System for modern pharmacies. 
             Manage inventory, sales, prescriptions, and customers all in one place.
           </p>
-          <Button 
-            onClick={handleGetStarted}
-            size="lg"
-            className="bg-pharmacy-600 hover:bg-pharmacy-700 text-white px-8 py-4 text-lg"
-          >
-            Get Started Now
-          </Button>
+          <div className="space-x-4">
+            <Button 
+              onClick={handleGetStarted}
+              size="lg"
+              className="bg-pharmacy-600 hover:bg-pharmacy-700 text-white px-8 py-4 text-lg"
+            >
+              Try Demo (No Login Required)
+            </Button>
+            <Button 
+              onClick={handleLogin}
+              size="lg"
+              variant="outline"
+              className="border-pharmacy-600 text-pharmacy-600 hover:bg-pharmacy-600 hover:text-white px-8 py-4 text-lg"
+            >
+              Login to Account
+            </Button>
+          </div>
         </div>
 
         {/* Features Grid */}
@@ -67,7 +81,7 @@ export default function LandingPage() {
         <div className="text-center bg-pharmacy-600 text-white p-12 rounded-lg">
           <h2 className="text-3xl font-bold mb-4">Ready to Transform Your Pharmacy?</h2>
           <p className="text-xl mb-8 opacity-90">
-            Join thousands of pharmacies already using PharmSync
+            Start exploring with our demo or create your account
           </p>
           <div className="space-x-4">
             <Button 
@@ -76,15 +90,15 @@ export default function LandingPage() {
               variant="secondary"
               className="bg-white text-pharmacy-600 hover:bg-gray-100"
             >
-              Start Free Trial
+              Explore Demo
             </Button>
             <Button 
-              onClick={() => navigate('/login')}
+              onClick={handleLogin}
               size="lg"
               variant="outline"
               className="border-white text-white hover:bg-white hover:text-pharmacy-600"
             >
-              Login to Your Account
+              Sign Up / Login
             </Button>
           </div>
         </div>
