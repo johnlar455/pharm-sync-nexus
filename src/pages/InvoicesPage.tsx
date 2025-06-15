@@ -1,193 +1,214 @@
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { toast } from "sonner";
-import { FileText, Search, Plus, Eye } from 'lucide-react';
-import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
+import { Plus, Search, FileText, Calendar, DollarSign } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
-interface Invoice {
+type Invoice = {
   id: string;
   invoice_number: string;
+  customer_id: string;
   total_amount: number;
-  status: string | null;
+  status: string;
+  due_date: string;
   created_at: string;
-  due_date: string | null;
-  customer_id: string | null;
-}
-
-interface Customer {
-  id: string;
-  full_name: string;
-}
+  notes: string;
+  customers: {
+    full_name: string;
+  } | null;
+};
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [customers, setCustomers] = useState<Record<string, Customer>>({});
-
-  useEffect(() => {
-    fetchInvoices();
-    fetchCustomers();
-
-    // Subscribe to changes
-    const channel = supabase
-      .channel('invoices-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, fetchInvoices)
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  const [searchTerm, setSearchTerm] = useState('');
+  const { toast } = useToast();
 
   const fetchInvoices = async () => {
-    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('invoices')
-        .select('*')
+        .select(`
+          *,
+          customers (full_name)
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       setInvoices(data || []);
-    } catch (error: any) {
-      toast.error('Failed to fetch invoices', { description: error.message });
+    } catch (error) {
+      console.error('Error fetching invoices:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch invoices",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchCustomers = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('customers')
-        .select('id, full_name');
+  useEffect(() => {
+    fetchInvoices();
+  }, []);
 
-      if (error) throw error;
-      
-      const customersMap: Record<string, Customer> = {};
-      data?.forEach(customer => {
-        customersMap[customer.id] = customer;
-      });
-      
-      setCustomers(customersMap);
-    } catch (error: any) {
-      toast.error('Failed to fetch customers', { description: error.message });
-    }
-  };
+  const filteredInvoices = invoices.filter(invoice =>
+    invoice.invoice_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    invoice.customers?.full_name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  const filteredInvoices = invoices.filter(invoice => {
-    const customerName = invoice.customer_id ? customers[invoice.customer_id]?.full_name.toLowerCase() : '';
-    return invoice.invoice_number.toLowerCase().includes(searchQuery.toLowerCase()) || 
-           customerName.includes(searchQuery.toLowerCase()) ||
-           (invoice.status && invoice.status.toLowerCase().includes(searchQuery.toLowerCase()));
-  });
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-';
-    try {
-      return format(new Date(dateString), 'PP');
-    } catch {
-      return dateString;
-    }
-  };
-
-  const getStatusBadge = (status: string | null) => {
-    if (!status) return <Badge variant="outline">Unknown</Badge>;
-    
-    switch(status.toLowerCase()) {
+  const getStatusBadge = (status: string) => {
+    switch (status?.toLowerCase()) {
       case 'paid':
-        return <Badge className="bg-green-100 text-green-800">Paid</Badge>;
+        return <Badge variant="outline" className="bg-green-100 text-green-800">Paid</Badge>;
       case 'pending':
-        return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
+        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800">Pending</Badge>;
       case 'overdue':
-        return <Badge className="bg-red-100 text-red-800">Overdue</Badge>;
+        return <Badge variant="destructive">Overdue</Badge>;
+      case 'cancelled':
+        return <Badge variant="outline" className="bg-gray-100 text-gray-800">Cancelled</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="outline">Draft</Badge>;
     }
   };
+
+  const totalInvoices = invoices.length;
+  const paidInvoices = invoices.filter(i => i.status?.toLowerCase() === 'paid').length;
+  const pendingInvoices = invoices.filter(i => i.status?.toLowerCase() === 'pending').length;
+  const totalAmount = invoices.reduce((sum, invoice) => sum + invoice.total_amount, 0);
+
+  if (loading) {
+    return (
+      <div className="flex h-[500px] items-center justify-center">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-pharmacy-200 border-t-pharmacy-600"></div>
+          <p className="mt-2 text-sm text-muted-foreground">Loading invoices...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-3xl font-bold">Invoices</h1>
-        <Button onClick={() => toast.info('Create invoice functionality coming soon')} className="mt-4 sm:mt-0">
-          <Plus className="mr-2 h-4 w-4" /> New Invoice
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">Invoices</h1>
+          <p className="text-muted-foreground">Manage customer invoices and billing</p>
+        </div>
+        <Button>
+          <Plus className="mr-2 h-4 w-4" />
+          Create Invoice
         </Button>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Invoices</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalInvoices}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Paid</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{paidInvoices}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{pendingInvoices}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${totalAmount.toFixed(2)}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex items-center space-x-2">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search invoices..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-8"
+          />
+        </div>
       </div>
 
       <Card>
         <CardHeader>
-          <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
-            <CardTitle>All Invoices</CardTitle>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-              <Input
-                className="pl-8"
-                placeholder="Search invoices..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </div>
+          <CardTitle>Invoice List</CardTitle>
         </CardHeader>
         <CardContent>
-          {loading ? (
-            <div className="flex h-48 items-center justify-center">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-pharmacy-200 border-t-pharmacy-600"></div>
-              <p className="ml-2">Loading invoices...</p>
+          {filteredInvoices.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <FileText className="h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-2">No invoices found</h3>
+              <p className="text-muted-foreground mb-4">
+                {searchTerm ? 'Try adjusting your search criteria' : 'Start by creating your first invoice'}
+              </p>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Invoice
+              </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              {filteredInvoices.length === 0 ? (
-                <div className="flex h-32 flex-col items-center justify-center rounded-lg border bg-gray-50 p-4 text-center dark:bg-gray-900">
-                  <p className="text-lg font-medium">No invoices found</p>
-                  <p className="text-sm text-muted-foreground">Try adjusting your search or create a new invoice</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Invoice #</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Customer</TableHead>
-                      <TableHead>Due Date</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredInvoices.map((invoice) => (
-                      <TableRow key={invoice.id}>
-                        <TableCell>{invoice.invoice_number}</TableCell>
-                        <TableCell>{formatDate(invoice.created_at)}</TableCell>
-                        <TableCell>{invoice.customer_id ? customers[invoice.customer_id]?.full_name : 'Walk-in Customer'}</TableCell>
-                        <TableCell>{formatDate(invoice.due_date)}</TableCell>
-                        <TableCell>${invoice.total_amount.toFixed(2)}</TableCell>
-                        <TableCell>{getStatusBadge(invoice.status)}</TableCell>
-                        <TableCell>
-                          <div className="flex space-x-2">
-                            <Button size="sm" variant="outline" onClick={() => toast.info('View invoice details coming soon')}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => toast.info('Print functionality coming soon')}>
-                              <FileText className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Invoice #</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Due Date</TableHead>
+                  <TableHead>Created</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredInvoices.map((invoice) => (
+                  <TableRow key={invoice.id}>
+                    <TableCell className="font-medium">
+                      {invoice.invoice_number}
+                    </TableCell>
+                    <TableCell>
+                      {invoice.customers?.full_name || 'Unknown Customer'}
+                    </TableCell>
+                    <TableCell>${invoice.total_amount.toFixed(2)}</TableCell>
+                    <TableCell>
+                      {getStatusBadge(invoice.status)}
+                    </TableCell>
+                    <TableCell>
+                      {invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : 'N/A'}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(invoice.created_at).toLocaleDateString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>

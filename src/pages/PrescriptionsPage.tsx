@@ -1,89 +1,92 @@
 
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Search, FileText, Calendar, User, Plus } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Plus, Search, FileText, User, Calendar } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 type Prescription = {
   id: string;
-  prescription_date: string;
+  customer_id: string;
   doctor_name: string;
-  notes: string;
+  prescription_date: string;
   status: string;
+  notes: string;
   created_at: string;
   customers: {
     full_name: string;
-    phone: string;
   } | null;
-  prescription_items: {
-    id: string;
-    quantity: number;
-    dosage: string;
-    instructions: string;
-    medicines: {
-      name: string;
-      generic_name: string;
-    } | null;
-  }[];
 };
 
 export default function PrescriptionsPage() {
+  const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed' | 'cancelled'>('all');
+  const { toast } = useToast();
 
-  const { data: prescriptions = [], isLoading } = useQuery({
-    queryKey: ['prescriptions', searchTerm, statusFilter],
-    queryFn: async () => {
-      let query = supabase
+  const fetchPrescriptions = async () => {
+    try {
+      const { data, error } = await supabase
         .from('prescriptions')
         .select(`
           *,
-          customers(full_name, phone),
-          prescription_items(
-            id,
-            quantity,
-            dosage,
-            instructions,
-            medicines(name, generic_name)
-          )
+          customers (full_name)
         `)
         .order('created_at', { ascending: false });
 
-      if (searchTerm) {
-        query = query.or(`doctor_name.ilike.%${searchTerm}%,customers.full_name.ilike.%${searchTerm}%`);
-      }
-
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
-      return data as Prescription[];
-    },
-  });
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <Badge variant="secondary">Completed</Badge>;
-      case 'pending':
-        return <Badge variant="default">Pending</Badge>;
-      case 'cancelled':
-        return <Badge variant="destructive">Cancelled</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
+      setPrescriptions(data || []);
+    } catch (error) {
+      console.error('Error fetching prescriptions:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch prescriptions",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (isLoading) {
+  useEffect(() => {
+    fetchPrescriptions();
+  }, []);
+
+  const filteredPrescriptions = prescriptions.filter(prescription =>
+    prescription.customers?.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    prescription.doctor_name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const getStatusBadge = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'active':
+        return <Badge variant="outline" className="bg-green-100 text-green-800">Active</Badge>;
+      case 'completed':
+        return <Badge variant="outline" className="bg-blue-100 text-blue-800">Completed</Badge>;
+      case 'cancelled':
+        return <Badge variant="destructive">Cancelled</Badge>;
+      default:
+        return <Badge variant="outline">Pending</Badge>;
+    }
+  };
+
+  const activePrescriptions = prescriptions.filter(p => p.status?.toLowerCase() === 'active').length;
+  const todayPrescriptions = prescriptions.filter(p => {
+    const today = new Date().toDateString();
+    return new Date(p.created_at).toDateString() === today;
+  }).length;
+
+  if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pharmacy-600"></div>
+      <div className="flex h-[500px] items-center justify-center">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-pharmacy-200 border-t-pharmacy-600"></div>
+          <p className="mt-2 text-sm text-muted-foreground">Loading prescriptions...</p>
+        </div>
       </div>
     );
   }
@@ -91,141 +94,124 @@ export default function PrescriptionsPage() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Prescriptions</h1>
-        <Button className="bg-pharmacy-600 hover:bg-pharmacy-700">
-          <Plus className="w-4 h-4 mr-2" />
+        <div>
+          <h1 className="text-3xl font-bold">Prescriptions</h1>
+          <p className="text-muted-foreground">Manage patient prescriptions</p>
+        </div>
+        <Button>
+          <Plus className="mr-2 h-4 w-4" />
           New Prescription
         </Button>
       </div>
 
-      {/* Filters and Search */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Prescriptions</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{prescriptions.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active</CardTitle>
+            <User className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{activePrescriptions}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Today</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{todayPrescriptions}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Completion Rate</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {prescriptions.length > 0 
+                ? Math.round((prescriptions.filter(p => p.status?.toLowerCase() === 'completed').length / prescriptions.length) * 100)
+                : 0}%
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex items-center space-x-2">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search prescriptions..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            className="pl-8"
           />
         </div>
-        
-        <div className="flex gap-2">
-          <Button
-            variant={statusFilter === 'all' ? 'default' : 'outline'}
-            onClick={() => setStatusFilter('all')}
-          >
-            All
-          </Button>
-          <Button
-            variant={statusFilter === 'pending' ? 'default' : 'outline'}
-            onClick={() => setStatusFilter('pending')}
-          >
-            Pending
-          </Button>
-          <Button
-            variant={statusFilter === 'completed' ? 'default' : 'outline'}
-            onClick={() => setStatusFilter('completed')}
-          >
-            Completed
-          </Button>
-          <Button
-            variant={statusFilter === 'cancelled' ? 'default' : 'outline'}
-            onClick={() => setStatusFilter('cancelled')}
-          >
-            Cancelled
-          </Button>
-        </div>
       </div>
 
-      {/* Prescriptions List */}
-      <div className="space-y-6">
-        {prescriptions.map((prescription) => (
-          <Card key={prescription.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <div className="space-y-1">
-                  <CardTitle className="text-lg font-semibold">
-                    Prescription #{prescription.id.slice(0, 8)}
-                  </CardTitle>
-                  <div className="flex items-center text-sm text-gray-600 space-x-4">
-                    <div className="flex items-center">
-                      <User className="w-4 h-4 mr-1" />
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Prescriptions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {filteredPrescriptions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <FileText className="h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-2">No prescriptions found</h3>
+              <p className="text-muted-foreground mb-4">
+                {searchTerm ? 'Try adjusting your search criteria' : 'Start by adding your first prescription'}
+              </p>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                New Prescription
+              </Button>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Patient</TableHead>
+                  <TableHead>Doctor</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Notes</TableHead>
+                  <TableHead>Created</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredPrescriptions.map((prescription) => (
+                  <TableRow key={prescription.id}>
+                    <TableCell className="font-medium">
                       {prescription.customers?.full_name || 'Unknown Patient'}
-                    </div>
-                    <div className="flex items-center">
-                      <Calendar className="w-4 h-4 mr-1" />
+                    </TableCell>
+                    <TableCell>{prescription.doctor_name}</TableCell>
+                    <TableCell>
                       {new Date(prescription.prescription_date).toLocaleDateString()}
-                    </div>
-                  </div>
-                </div>
-                {getStatusBadge(prescription.status || 'pending')}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Doctor Information</h4>
-                  <p className="text-sm text-gray-600">{prescription.doctor_name}</p>
-                </div>
-                
-                {prescription.customers?.phone && (
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">Patient Contact</h4>
-                    <p className="text-sm text-gray-600">{prescription.customers.phone}</p>
-                  </div>
-                )}
-              </div>
-
-              {prescription.prescription_items && prescription.prescription_items.length > 0 && (
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Prescribed Medicines</h4>
-                  <div className="space-y-2">
-                    {prescription.prescription_items.map((item) => (
-                      <div key={item.id} className="bg-gray-50 p-3 rounded-lg">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium">{item.medicines?.name || 'Unknown Medicine'}</p>
-                            {item.medicines?.generic_name && (
-                              <p className="text-sm text-gray-600">{item.medicines.generic_name}</p>
-                            )}
-                            <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
-                            {item.dosage && (
-                              <p className="text-sm text-gray-600">Dosage: {item.dosage}</p>
-                            )}
-                          </div>
-                        </div>
-                        {item.instructions && (
-                          <p className="text-sm text-gray-700 mt-2">
-                            Instructions: {item.instructions}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {prescription.notes && (
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Notes</h4>
-                  <p className="text-sm text-gray-600">{prescription.notes}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {prescriptions.length === 0 && (
-        <div className="text-center py-12">
-          <FileText className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No prescriptions found</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            {searchTerm ? 'Try adjusting your search terms.' : 'Start by creating a new prescription.'}
-          </p>
-        </div>
-      )}
+                    </TableCell>
+                    <TableCell>
+                      {getStatusBadge(prescription.status)}
+                    </TableCell>
+                    <TableCell>{prescription.notes || 'N/A'}</TableCell>
+                    <TableCell>
+                      {new Date(prescription.created_at).toLocaleDateString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

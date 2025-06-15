@@ -37,8 +37,7 @@ export const useDashboardData = () => {
       // Get total medicines count
       const { count: medicinesCount } = await supabase
         .from('medicines')
-        .select('*', { count: 'exact' })
-        .limit(0);
+        .select('*', { count: 'exact', head: true });
 
       // Get all medicines to check stock levels and expiry
       const { data: allMedicines } = await supabase
