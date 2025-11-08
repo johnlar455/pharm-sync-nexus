@@ -13,13 +13,12 @@ type Invoice = {
   id: string;
   invoice_number: string;
   customer_id: string;
-  total_amount: number;
+  amount: number;
   status: string;
   due_date: string;
   created_at: string;
-  notes: string;
   customers: {
-    full_name: string;
+    name: string;
   } | null;
 };
 
@@ -35,7 +34,7 @@ export default function InvoicesPage() {
         .from('invoices')
         .select(`
           *,
-          customers (full_name)
+          customers (name)
         `)
         .order('created_at', { ascending: false });
 
@@ -59,7 +58,7 @@ export default function InvoicesPage() {
 
   const filteredInvoices = invoices.filter(invoice =>
     invoice.invoice_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    invoice.customers?.full_name.toLowerCase().includes(searchTerm.toLowerCase())
+    invoice.customers?.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getStatusBadge = (status: string) => {
@@ -80,7 +79,7 @@ export default function InvoicesPage() {
   const totalInvoices = invoices.length;
   const paidInvoices = invoices.filter(i => i.status?.toLowerCase() === 'paid').length;
   const pendingInvoices = invoices.filter(i => i.status?.toLowerCase() === 'pending').length;
-  const totalAmount = invoices.reduce((sum, invoice) => sum + invoice.total_amount, 0);
+  const totalAmount = invoices.reduce((sum, invoice) => sum + invoice.amount, 0);
 
   if (loading) {
     return (
@@ -193,9 +192,9 @@ export default function InvoicesPage() {
                       {invoice.invoice_number}
                     </TableCell>
                     <TableCell>
-                      {invoice.customers?.full_name || 'Unknown Customer'}
+                      {invoice.customers?.name || 'Unknown Customer'}
                     </TableCell>
-                    <TableCell>${invoice.total_amount.toFixed(2)}</TableCell>
+                    <TableCell>${invoice.amount.toFixed(2)}</TableCell>
                     <TableCell>
                       {getStatusBadge(invoice.status)}
                     </TableCell>

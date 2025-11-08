@@ -13,12 +13,12 @@ type Prescription = {
   id: string;
   customer_id: string;
   doctor_name: string;
-  prescription_date: string;
+  issue_date: string;
   status: string;
   notes: string;
   created_at: string;
   customers: {
-    full_name: string;
+    name: string;
   } | null;
 };
 
@@ -34,7 +34,7 @@ export default function PrescriptionsPage() {
         .from('prescriptions')
         .select(`
           *,
-          customers (full_name)
+          customers (name)
         `)
         .order('created_at', { ascending: false });
 
@@ -57,7 +57,7 @@ export default function PrescriptionsPage() {
   }, []);
 
   const filteredPrescriptions = prescriptions.filter(prescription =>
-    prescription.customers?.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    prescription.customers?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     prescription.doctor_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -192,11 +192,11 @@ export default function PrescriptionsPage() {
                 {filteredPrescriptions.map((prescription) => (
                   <TableRow key={prescription.id}>
                     <TableCell className="font-medium">
-                      {prescription.customers?.full_name || 'Unknown Patient'}
+                      {prescription.customers?.name || 'Unknown Patient'}
                     </TableCell>
                     <TableCell>{prescription.doctor_name}</TableCell>
                     <TableCell>
-                      {new Date(prescription.prescription_date).toLocaleDateString()}
+                      {new Date(prescription.issue_date).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
                       {getStatusBadge(prescription.status)}

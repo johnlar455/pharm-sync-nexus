@@ -84,7 +84,7 @@ export const useDashboardData = () => {
             id,
             total_amount,
             created_at,
-            customers(full_name)
+            customers(name)
           `)
           .order('created_at', { ascending: false })
           .limit(3),
@@ -107,7 +107,7 @@ export const useDashboardData = () => {
             id,
             doctor_name,
             created_at,
-            customers(full_name)
+            customers(name)
           `)
           .order('created_at', { ascending: false })
           .limit(2)
@@ -121,7 +121,7 @@ export const useDashboardData = () => {
         activities.push(...recentSales.data.map(sale => ({
           id: sale.id,
           type: 'sale' as const,
-          description: `Sale to ${sale.customers?.full_name || 'Customer'} - $${sale.total_amount}`,
+          description: `Sale to ${sale.customers?.name || 'Customer'} - $${sale.total_amount}`,
           timestamp: sale.created_at,
         })));
       }
@@ -141,7 +141,7 @@ export const useDashboardData = () => {
         activities.push(...recentPrescriptions.data.map(prescription => ({
           id: prescription.id,
           type: 'prescription' as const,
-          description: `New prescription by Dr. ${prescription.doctor_name} for ${prescription.customers?.full_name || 'Patient'}`,
+          description: `New prescription by Dr. ${prescription.doctor_name} for ${prescription.customers?.name || 'Patient'}`,
           timestamp: prescription.created_at,
         })));
       }

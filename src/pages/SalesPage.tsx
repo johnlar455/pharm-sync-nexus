@@ -13,11 +13,11 @@ type Sale = {
   id: string;
   customer_id: string;
   total_amount: number;
-  payment_status: string;
+  status: string;
   payment_method: string;
   created_at: string;
   customers: {
-    full_name: string;
+    name: string;
   } | null;
 };
 
@@ -33,7 +33,7 @@ export default function SalesPage() {
         .from('sales')
         .select(`
           *,
-          customers (full_name)
+          customers (name)
         `)
         .order('created_at', { ascending: false });
 
@@ -56,7 +56,7 @@ export default function SalesPage() {
   }, []);
 
   const filteredSales = sales.filter(sale =>
-    sale.customers?.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    sale.customers?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     sale.payment_method?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -188,14 +188,14 @@ export default function SalesPage() {
                 {filteredSales.map((sale) => (
                   <TableRow key={sale.id}>
                     <TableCell className="font-medium">
-                      {sale.customers?.full_name || 'Walk-in Customer'}
+                      {sale.customers?.name || 'Walk-in Customer'}
                     </TableCell>
                     <TableCell>${sale.total_amount.toFixed(2)}</TableCell>
                     <TableCell className="capitalize">
                       {sale.payment_method || 'Cash'}
                     </TableCell>
                     <TableCell>
-                      {getPaymentStatusBadge(sale.payment_status)}
+                      {getPaymentStatusBadge(sale.status)}
                     </TableCell>
                     <TableCell>
                       {new Date(sale.created_at).toLocaleDateString()}

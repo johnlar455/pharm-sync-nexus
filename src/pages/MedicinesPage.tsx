@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 type Medicine = {
   id: string;
   name: string;
-  generic_name: string;
+  description: string;
   manufacturer: string;
   category: string;
   unit_price: number;
@@ -53,7 +53,7 @@ export default function MedicinesPage() {
 
   const filteredMedicines = medicines.filter(medicine =>
     medicine.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    medicine.generic_name?.toLowerCase().includes(searchTerm.toLowerCase())
+    medicine.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getStockStatus = (current: number, reorder: number) => {
@@ -120,8 +120,8 @@ export default function MedicinesPage() {
                   <CardTitle className="text-lg">{medicine.name}</CardTitle>
                   {getStockBadge(stockStatus)}
                 </div>
-                {medicine.generic_name && (
-                  <p className="text-sm text-muted-foreground">{medicine.generic_name}</p>
+                {medicine.description && (
+                  <p className="text-sm text-muted-foreground">{medicine.description}</p>
                 )}
               </CardHeader>
               <CardContent className="space-y-2">

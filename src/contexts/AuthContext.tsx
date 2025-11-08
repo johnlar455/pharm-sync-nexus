@@ -83,13 +83,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('profiles')
         .select('full_name, role')
         .eq('id', authUser.id)
-        .single();
+        .maybeSingle();
       
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error('Error fetching profile:', error);
       }
       
-      const role = profile?.role as UserRole || 'cashier';
+      const role = (profile?.role as UserRole) || 'cashier';
       
       setUser({
         id: authUser.id,

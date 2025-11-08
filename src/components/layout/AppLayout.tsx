@@ -6,6 +6,7 @@ import { Header } from './Header';
 type AppLayoutProps = {
   children: ReactNode;
   user: {
+    id: string;
     name: string;
     email: string;
     role: string;

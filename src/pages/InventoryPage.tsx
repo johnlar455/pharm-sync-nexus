@@ -13,10 +13,7 @@ type InventoryTransaction = {
   id: string;
   medicine_id: string;
   quantity: number;
-  unit_price: number;
-  total_amount: number;
   transaction_type: string;
-  reference_number: string;
   notes: string;
   created_at: string;
   medicines: {
@@ -60,7 +57,7 @@ export default function InventoryPage() {
 
   const filteredTransactions = transactions.filter(transaction =>
     transaction.medicines?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    transaction.reference_number?.toLowerCase().includes(searchTerm.toLowerCase())
+    transaction.notes?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getTransactionIcon = (type: string) => {
@@ -133,9 +130,7 @@ export default function InventoryPage() {
                   <TableHead>Medicine</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Quantity</TableHead>
-                  <TableHead>Unit Price</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Reference</TableHead>
+                  <TableHead>Notes</TableHead>
                   <TableHead>Date</TableHead>
                 </TableRow>
               </TableHeader>
@@ -152,9 +147,7 @@ export default function InventoryPage() {
                       </div>
                     </TableCell>
                     <TableCell>{transaction.quantity}</TableCell>
-                    <TableCell>${transaction.unit_price.toFixed(2)}</TableCell>
-                    <TableCell>${transaction.total_amount.toFixed(2)}</TableCell>
-                    <TableCell>{transaction.reference_number || 'N/A'}</TableCell>
+                    <TableCell>{transaction.notes || 'N/A'}</TableCell>
                     <TableCell>
                       {new Date(transaction.created_at).toLocaleDateString()}
                     </TableCell>

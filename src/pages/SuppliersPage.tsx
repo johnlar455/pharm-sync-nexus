@@ -10,12 +10,11 @@ import { useToast } from '@/hooks/use-toast';
 
 type Supplier = {
   id: string;
-  company_name: string;
+  name: string;
   contact_person: string;
   email: string;
   phone: string;
   address: string;
-  tax_number: string;
   created_at: string;
 };
 
@@ -30,7 +29,7 @@ export default function SuppliersPage() {
       const { data, error } = await supabase
         .from('suppliers')
         .select('*')
-        .order('company_name');
+        .order('name');
 
       if (error) throw error;
       setSuppliers(data || []);
@@ -51,7 +50,7 @@ export default function SuppliersPage() {
   }, []);
 
   const filteredSuppliers = suppliers.filter(supplier =>
-    supplier.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     supplier.contact_person?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     supplier.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -151,7 +150,6 @@ export default function SuppliersPage() {
                   <TableHead>Contact Person</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>Tax Number</TableHead>
                   <TableHead>Added</TableHead>
                 </TableRow>
               </TableHeader>
@@ -159,12 +157,11 @@ export default function SuppliersPage() {
                 {filteredSuppliers.map((supplier) => (
                   <TableRow key={supplier.id}>
                     <TableCell className="font-medium">
-                      {supplier.company_name}
+                      {supplier.name}
                     </TableCell>
                     <TableCell>{supplier.contact_person || 'N/A'}</TableCell>
                     <TableCell>{supplier.email || 'N/A'}</TableCell>
                     <TableCell>{supplier.phone || 'N/A'}</TableCell>
-                    <TableCell>{supplier.tax_number || 'N/A'}</TableCell>
                     <TableCell>
                       {new Date(supplier.created_at).toLocaleDateString()}
                     </TableCell>

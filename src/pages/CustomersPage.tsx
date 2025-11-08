@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 
 type Customer = {
   id: string;
-  full_name: string;
+  name: string;
   email: string;
   phone: string;
   address: string;
@@ -28,7 +28,7 @@ export default function CustomersPage() {
       const { data, error } = await supabase
         .from('customers')
         .select('*')
-        .order('full_name');
+        .order('name');
 
       if (error) throw error;
       setCustomers(data || []);
@@ -49,7 +49,7 @@ export default function CustomersPage() {
   }, []);
 
   const filteredCustomers = customers.filter(customer =>
-    customer.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     customer.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     customer.phone?.includes(searchTerm)
   );
@@ -156,7 +156,7 @@ export default function CustomersPage() {
                 {filteredCustomers.map((customer) => (
                   <TableRow key={customer.id}>
                     <TableCell className="font-medium">
-                      {customer.full_name}
+                      {customer.name}
                     </TableCell>
                     <TableCell>{customer.email || 'N/A'}</TableCell>
                     <TableCell>{customer.phone || 'N/A'}</TableCell>
