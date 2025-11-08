@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router-dom';
 
 type HeaderProps = {
   user: {
+    id: string;
     name: string;
     email: string;
     role: string;
