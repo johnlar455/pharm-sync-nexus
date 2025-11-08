@@ -72,7 +72,7 @@ export default function CustomersPage() {
           <h1 className="text-3xl font-bold">Customers</h1>
           <p className="text-muted-foreground">Manage your customer database</p>
         </div>
-        <Button>
+        <Button onClick={() => toast({ title: "Coming Soon", description: "Customer form will be available soon" })}>
           <Plus className="mr-2 h-4 w-4" />
           Add Customer
         </Button>
@@ -136,7 +136,7 @@ export default function CustomersPage() {
               <p className="text-muted-foreground mb-4">
                 {searchTerm ? 'Try adjusting your search criteria' : 'Start by adding your first customer'}
               </p>
-              <Button>
+              <Button onClick={() => toast({ title: "Coming Soon", description: "Customer form will be available soon" })}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Customer
               </Button>

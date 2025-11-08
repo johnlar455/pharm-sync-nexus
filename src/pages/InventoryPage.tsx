@@ -88,7 +88,7 @@ export default function InventoryPage() {
           <h1 className="text-3xl font-bold">Inventory Management</h1>
           <p className="text-muted-foreground">Track stock movements and transactions</p>
         </div>
-        <Button>
+        <Button onClick={() => toast({ title: "Coming Soon", description: "Transaction form will be available soon" })}>
           <Plus className="mr-2 h-4 w-4" />
           New Transaction
         </Button>
@@ -118,7 +118,7 @@ export default function InventoryPage() {
               <p className="text-muted-foreground mb-4">
                 {searchTerm ? 'Try adjusting your search criteria' : 'Start by recording your first transaction'}
               </p>
-              <Button>
+              <Button onClick={() => toast({ title: "Coming Soon", description: "Transaction form will be available soon" })}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Transaction
               </Button>

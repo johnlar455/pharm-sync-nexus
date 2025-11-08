@@ -98,7 +98,7 @@ export default function PrescriptionsPage() {
           <h1 className="text-3xl font-bold">Prescriptions</h1>
           <p className="text-muted-foreground">Manage patient prescriptions</p>
         </div>
-        <Button>
+        <Button onClick={() => toast({ title: "Coming Soon", description: "Prescription form will be available soon" })}>
           <Plus className="mr-2 h-4 w-4" />
           New Prescription
         </Button>
@@ -171,7 +171,7 @@ export default function PrescriptionsPage() {
               <p className="text-muted-foreground mb-4">
                 {searchTerm ? 'Try adjusting your search criteria' : 'Start by adding your first prescription'}
               </p>
-              <Button>
+              <Button onClick={() => toast({ title: "Coming Soon", description: "Prescription form will be available soon" })}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Prescription
               </Button>

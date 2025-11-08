@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, FileText, Calendar, DollarSign } from 'lucide-react';
+import { Plus, Search, FileText, DollarSign, Calendar } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -99,7 +99,7 @@ export default function InvoicesPage() {
           <h1 className="text-3xl font-bold">Invoices</h1>
           <p className="text-muted-foreground">Manage customer invoices and billing</p>
         </div>
-        <Button>
+        <Button onClick={() => toast({ title: "Coming Soon", description: "Invoice form will be available soon" })}>
           <Plus className="mr-2 h-4 w-4" />
           Create Invoice
         </Button>
@@ -168,7 +168,7 @@ export default function InvoicesPage() {
               <p className="text-muted-foreground mb-4">
                 {searchTerm ? 'Try adjusting your search criteria' : 'Start by creating your first invoice'}
               </p>
-              <Button>
+              <Button onClick={() => toast({ title: "Coming Soon", description: "Invoice form will be available soon" })}>
                 <Plus className="mr-2 h-4 w-4" />
                 Create Invoice
               </Button>

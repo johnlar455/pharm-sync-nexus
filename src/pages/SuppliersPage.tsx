@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Search, Building, Mail, Phone } from 'lucide-react';
+import { Plus, Search, Truck, Building, Mail, Phone } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -73,7 +73,7 @@ export default function SuppliersPage() {
           <h1 className="text-3xl font-bold">Suppliers</h1>
           <p className="text-muted-foreground">Manage your supplier network</p>
         </div>
-        <Button>
+        <Button onClick={() => toast({ title: "Coming Soon", description: "Supplier form will be available soon" })}>
           <Plus className="mr-2 h-4 w-4" />
           Add Supplier
         </Button>
@@ -137,7 +137,7 @@ export default function SuppliersPage() {
               <p className="text-muted-foreground mb-4">
                 {searchTerm ? 'Try adjusting your search criteria' : 'Start by adding your first supplier'}
               </p>
-              <Button>
+              <Button onClick={() => toast({ title: "Coming Soon", description: "Supplier form will be available soon" })}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Supplier
               </Button>

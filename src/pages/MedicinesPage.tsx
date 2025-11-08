@@ -1,8 +1,8 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Search, Package, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -91,7 +91,7 @@ export default function MedicinesPage() {
           <h1 className="text-3xl font-bold">Medicines</h1>
           <p className="text-muted-foreground">Manage your pharmacy inventory</p>
         </div>
-        <Button>
+        <Button onClick={() => toast({ title: "Coming Soon", description: "Medicine form will be available soon" })}>
           <Plus className="mr-2 h-4 w-4" />
           Add Medicine
         </Button>
@@ -164,10 +164,10 @@ export default function MedicinesPage() {
           <p className="text-muted-foreground mb-4">
             {searchTerm ? 'Try adjusting your search criteria' : 'Start by adding your first medicine'}
           </p>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Medicine
-          </Button>
+              <Button onClick={() => toast({ title: "Coming Soon", description: "Medicine form will be available soon" })}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Medicine
+              </Button>
         </div>
       )}
     </div>
